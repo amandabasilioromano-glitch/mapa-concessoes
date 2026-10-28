@@ -734,6 +734,23 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .rlist .sw{width:12px;height:4px;border-radius:2px;flex:none}
 .rlist .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted)}
 .odpin{width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1.5px #071d41;transform:translate(-50%,-50%)}
+
+.mapbar{display:flex;gap:10px;align-items:center}
+.bm,.fs{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.22)}
+.bm{display:flex;padding:3px;gap:2px}
+.bm button{border:0;background:none;padding:7px 12px;border-radius:6px;font:600 13.5px "Segoe UI",Roboto,Arial,sans-serif;color:#33415c;cursor:pointer}
+.bm button:hover{background:#f0f2f5}
+.bm button.on{background:#071d41;color:#fff}
+.fs{border:0;display:flex;align-items:center;gap:7px;padding:10px 13px;font:600 13.5px "Segoe UI",Roboto,Arial,sans-serif;color:#1d2433;cursor:pointer}
+.fs:hover{background:#f6f7f9}
+#od{margin:12px 12px 6px;border:1px solid #c7d7f2;border-radius:10px;background:#edf3fd}
+#od summary{padding:11px 14px;color:#0b3a82}
+#od summary::before{content:"";width:9px;height:9px;border-radius:50%;background:#1a7f37;box-shadow:0 0 0 2px #fff,0 0 0 3px #1a7f37;margin-right:4px}
+#od .fbody{padding:0 14px 14px}
+#od .odf input{background:#fff;border-color:#c7d7f2}
+#od .btn:not(.pri){border-color:#c7d7f2}
+#od .rcard{background:#fff;border-color:#d5e1f5}
+#od .rcard.sel{background:#fff}
 #toggle{display:none}
 @media (max-width:760px){
   #side{position:absolute;z-index:1000;height:100%;transform:translateX(-100%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.15)}
@@ -793,13 +810,12 @@ const map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([-17,-50],5)
 const canvas=L.canvas({padding:.5,tolerance:6});
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const attr='Mapa: Esri, HERE, Garmin, © OpenStreetMap | Dados: ANTT';
+const T=(u,m)=>L.tileLayer(ESRI+u+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:m,attribution:attr});
 const bases={
-  'Cinza (Esri)':L.layerGroup([L.tileLayer(ESRI+'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:attr}),L.tileLayer(ESRI+'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16})]),
-  'Ruas (Esri)':L.tileLayer(ESRI+'World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:attr}),
-  'Satélite (Esri)':L.layerGroup([L.tileLayer(ESRI+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:attr}),L.tileLayer(ESRI+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})]),
-  'Só limites das UFs':L.layerGroup()
+  claro:L.layerGroup([T('Canvas/World_Light_Gray_Base',16),T('Canvas/World_Light_Gray_Reference',16)]),
+  ruas:L.layerGroup([T('World_Street_Map',19)]),
+  satelite:L.layerGroup([T('World_Imagery',19),T('Reference/World_Boundaries_and_Places',19)])
 };
-bases['Cinza (Esri)'].addTo(map);
 // UF outlines: always shown, so the map still has context if tiles cannot load
 const ufPane=map.createPane('uf');ufPane.style.zIndex=350;ufPane.style.pointerEvents='none';
 const ufLayer=L.layerGroup();
@@ -813,16 +829,33 @@ UFS.forEach(([sg,polys])=>{
   ufLabels.addLayer(L.marker(c,{interactive:false,icon:L.divIcon({className:'',html:'<div style="font:600 11px sans-serif;color:#7a8396;transform:translate(-50%,-50%);white-space:nowrap">'+sg+'</div>'})}));
 });
 const ufGroup=L.layerGroup([ufLayer,ufLabels]).addTo(map);
-const layerCtl=L.control.layers(bases,{'Limites e siglas das UFs':ufGroup},{collapsed:true,position:'topright'}).addTo(map);
-// Se o ambiente bloquear imagens externas (ex.: página publicada no Claude), o fundo da Esri não carrega:
-// troca o seletor por um aviso em vez de deixar opções que não funcionam.
-let tileOk=false,tileFail=false;
-Object.values(bases).forEach(g=>g.eachLayer?g.eachLayer(l=>{l.on('tileload',()=>tileOk=true);l.on('tileerror',()=>{if(!tileOk&&!tileFail){tileFail=true;setTimeout(noTiles,300)}})}):(g.on('tileload',()=>tileOk=true),g.on('tileerror',()=>{if(!tileOk&&!tileFail){tileFail=true;setTimeout(noTiles,300)}})));
-function noTiles(){
-  if(tileOk)return;
-  Object.values(bases).forEach(g=>map.removeLayer(g));
-  map.removeControl(layerCtl);
+let baseKey=null,tileOk=false,tileFail=false;
+function setBase(k){
+  if(baseKey&&bases[baseKey])map.removeLayer(bases[baseKey]);
+  baseKey=k;if(bases[k])bases[k].addTo(map);
+  // contorno das UFs: preenchido no claro (ou sem fundo); só a linha nos demais
+  const sat=k==='satelite',plain=k==='claro'||!bases[k];
+  ufLayer.eachLayer(l=>l.setStyle({color:sat?'#ffffff':'#8a94a6',weight:sat?.8:1,opacity:sat?.7:1,fillOpacity:plain?.35:0}));
+  if(plain)ufLabels.addTo(ufGroup);else ufGroup.removeLayer(ufLabels);
+  document.querySelectorAll('.bm button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
 }
+const MapBar=L.Control.extend({onAdd(){
+  const d=L.DomUtil.create('div','mapbar');
+  d.innerHTML='<div class="bm"><button data-k="claro">Claro</button><button data-k="ruas">Ruas</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Tela cheia</span></button>';
+  L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);
+  d.querySelectorAll('.bm button').forEach(b=>b.onclick=()=>setBase(b.dataset.k));
+  d.querySelector('.fs').onclick=()=>{
+    const el=document.getElementById('app');
+    try{if(document.fullscreenElement)document.exitFullscreen();else (el.requestFullscreen||el.webkitRequestFullscreen).call(el)}catch(e){}
+  };
+  return d}});
+new MapBar({position:'topright'}).addTo(map);
+document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;const s=document.querySelector('.fs span');if(s)s.textContent=on?'Sair da tela cheia':'Tela cheia';setTimeout(()=>map.invalidateSize(),150)});
+if(!(document.fullscreenEnabled||document.webkitFullscreenEnabled)){const f=document.querySelector('.fs');if(f)f.style.display='none'}
+Object.values(bases).forEach(g=>g.eachLayer(l=>{l.on('tileload',()=>tileOk=true);l.on('tileerror',()=>{if(!tileOk&&!tileFail){tileFail=true;setTimeout(noTiles,300)}})}));
+// se o ambiente bloquear imagens externas, o fundo da Esri não carrega: fica só o contorno das UFs, sem seletor
+function noTiles(){if(tileOk)return;setBase(null);const bm=document.querySelector('.bm');if(bm)bm.style.display='none'}
+setBase('claro');
 L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
 
 const fmt=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:0});
