@@ -1140,11 +1140,13 @@ function showStats(){
 window.onRouteChange=()=>{showStats();updatePed();updateRec();if(window.updateLegend)updateLegend()};
 function update(fit){
   segLayer.clearLayers();let km=0,n=0;const cs=new Set();
-  SEG.forEach(s=>{if(pass(s)){segLayer.addLayer(lines[s.i]);km+=s.km;n++;cs.add(s.c)}});
+  // trecho coincidente fica em cima do eixo principal: só entra na soma quando o filtro mostra apenas os coincidentes
+  const soCoinc=sel.k.size>0&&!sel.k.has('-'),kmOf=s=>s.k==='-'||soCoinc?s.km:0;
+  SEG.forEach(s=>{if(pass(s)){segLayer.addLayer(lines[s.i]);km+=kmOf(s);n++;cs.add(s.c)}});
   STAT={km,n:cs.size};showStats();
   DIMS.forEach(d=>{
-    const cnt={};SEG.forEach(s=>{if(pass(s,d.key))cnt[s[d.key]]=(cnt[s[d.key]]||0)+s.km});
-    d.values.forEach(v=>{const r=d.rows[v];r.cb.checked=sel[d.key].has(v);r.n.textContent=cnt[v]?fmt1(cnt[v])+' km':'';r.lab.classList.toggle('dim',!cnt[v]&&!sel[d.key].has(v))});
+    const cnt={},has={};SEG.forEach(s=>{if(pass(s,d.key)){const v=s[d.key];has[v]=1;cnt[v]=(cnt[v]||0)+(d.key==='k'?s.km:kmOf(s))}});
+    d.values.forEach(v=>{const r=d.rows[v];r.cb.checked=sel[d.key].has(v);r.n.textContent=cnt[v]?fmt1(cnt[v])+' km':'';r.lab.classList.toggle('dim',!has[v]&&!sel[d.key].has(v))});
     rowVis(d);d.badge.textContent=sel[d.key].size||'';
   });
   updatePed();updateRec();
