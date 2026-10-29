@@ -774,6 +774,17 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .legend .pdot{width:.85em;height:.85em;margin:0 .225em}
 .leaflet-ped-pane>svg,.leaflet-rt-pane>svg{pointer-events:none}
 .leaflet-ped-pane>svg path.leaflet-interactive,.leaflet-rt-pane>svg path.leaflet-interactive{pointer-events:visiblePainted}
+.busca{padding:12px 12px 4px}
+#fBusca{margin:0}
+#fBusca input{padding-left:30px;height:38px;font-size:13.5px;border-radius:8px}
+#fBusca .lupa{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#667085;font-size:17px;pointer-events:none}
+#fBusca .x{bottom:auto;top:50%;transform:translateY(-50%)}
+.ac li .tp{float:right;color:var(--muted);font-size:11px}
+.addstop{border:0;background:none;color:var(--acc);font-size:12.5px;font-weight:600;cursor:pointer;padding:0 0 8px}
+.addstop:disabled{color:#98a2b3;cursor:default}
+.odf.stop label{color:#0b3a82}
+.stoppin{width:20px;height:20px;border-radius:50%;background:#1351b4;color:#fff;font:700 11px/20px Arial;text-align:center;border:2px solid #fff;box-shadow:0 0 0 1.5px #071d41;transform:translate(-50%,-50%)}
+.buscapin{width:14px;height:14px;border-radius:50%;background:#fff;border:4px solid #071d41;transform:translate(-50%,-50%)}
 #toggle{display:none}
 @media (max-width:760px){
   #side{position:absolute;z-index:1000;height:100%;transform:translateX(-100%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.15)}
@@ -793,11 +804,14 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
       <div class="stat"><b id="sCon">–</b><span>concessionárias</span></div>
     </div>
     <div id="filters">
+      <div class="busca"><div class="odf" id="fBusca"><span class="lupa">⌕</span><input type="text" placeholder="Buscar cidade ou estado" autocomplete="off"><button class="x" title="Limpar">×</button><ul class="ac" hidden></ul></div></div>
       <details class="flt" id="od" open>
         <summary>Origem e destino <span class="chev">›</span></summary>
         <div class="fbody">
           <div class="odf" id="fDe"><label>Origem</label><input type="text" placeholder="Cidade (ex.: Brasília)" autocomplete="off"><button class="x" title="Limpar">×</button><ul class="ac" hidden></ul></div>
+          <div id="stops"></div>
           <div class="odf" id="fPara"><label>Destino</label><input type="text" placeholder="Cidade (ex.: Cuiabá)" autocomplete="off"><button class="x" title="Limpar">×</button><ul class="ac" hidden></ul></div>
+          <button class="addstop" id="odAdd" type="button">+ Adicionar parada</button>
           <div class="odrow"><button class="btn swap" id="odSwap" title="Inverter origem e destino">⇅</button><button class="btn pri" id="odGo">Calcular rotas</button><button class="btn" id="odClr" style="flex:none;width:70px">Limpar</button></div>
           <div id="odMsg"></div>
           <div id="odRes"></div>
@@ -1107,15 +1121,16 @@ update(true);
 const MUN=MUNRAW.split(';').map(r=>{const a=r.split('|');return {n:a[0],uf:a[1],lat:+a[2],lon:+a[3],cap:a[4]==='1',k:norm(a[0])}});
 const UFS_=new Set(MUN.map(m=>m.uf));
 function searchMun(q){
-  let nq=norm(q).trim(),uf=null;if(!nq)return [];
-  const m=/^(.*\S)\s+([a-z]{2})$/.exec(nq);if(m&&UFS_.has(m[2].toUpperCase())){uf=m[2].toUpperCase();nq=m[1]}
-  nq=nq.replace(/[-,/]+$/,'').trim();
-  const out=[];
-  MUN.forEach(p=>{if(uf&&p.uf!==uf)return;let s=0;
-    if(p.k===nq)s=100;else if(p.k.startsWith(nq))s=80;else if((' '+p.k).includes(' '+nq))s=60;else if(nq.length>=4&&p.k.includes(nq))s=40;
-    if(s){if(p.cap)s+=8;out.push([s,p])}});
-  out.sort((a,b)=>b[0]-a[0]||a[1].n.length-b[1].n.length||a[1].n.localeCompare(b[1].n,'pt'));
-  return out.slice(0,8).map(x=>x[1]);
+  const full=norm(q).trim().replace(/[-,/]+$/,'').trim();if(!full)return [];
+  const run=(nq,uf)=>{const out=[];
+    MUN.forEach(p=>{if(uf&&p.uf!==uf)return;let s=0;
+      if(p.k===nq)s=100;else if(p.k.startsWith(nq))s=80;else if((' '+p.k).includes(' '+nq))s=60;else if(nq.length>=4&&p.k.includes(nq))s=40;
+      if(s){if(p.cap)s+=8;out.push([s,p])}});
+    out.sort((a,b)=>b[0]-a[0]||a[1].n.length-b[1].n.length||a[1].n.localeCompare(b[1].n,'pt'));return out};
+  // "cidade UF" (ex.: "campo grande ms"): também tenta a sigla no fim como filtro de estado
+  const m=/^(.*\S)\s+([a-z]{2})$/.exec(full);let res=run(full,null);
+  if(m&&UFS_.has(m[2].toUpperCase())){const r2=run(m[1],m[2].toUpperCase());res=(res.length&&res[0][0]>=80?res.concat(r2):r2.concat(res))}
+  const seen=new Set();return res.filter(x=>!seen.has(x[1])&&seen.add(x[1])).slice(0,8).map(x=>x[1]);
 }
 const lab=p=>p?p.n+' ('+p.uf+')':'';
 function Combo(el){
@@ -1132,11 +1147,23 @@ function Combo(el){
   inp.addEventListener('blur',()=>setTimeout(()=>{ul.hidden=true;if(!self.value&&inp.value){const b=searchMun(inp.value)[0];if(b)self.set(b)}},150));
   ul.addEventListener('mousedown',e=>e.preventDefault());
   ul.addEventListener('click',e=>{const li=e.target.closest('li');if(li)pick(+li.dataset.i)});
-  x.addEventListener('click',()=>{self.set(null);inp.focus();clearRoutes()});
+  x.addEventListener('click',()=>{if(self.onclear){self.onclear();return}self.set(null);inp.focus();clearRoutes()});
   this.inp=inp;
 }
 const cDe=new Combo(document.getElementById('fDe')),cPara=new Combo(document.getElementById('fPara'));
 cDe.onpick=()=>{if(!cPara.value)cPara.inp.focus()};cPara.onpick=()=>document.getElementById('odGo').focus();
+// paradas intermediárias (até 5)
+const STOPS=[],MAXS=5,stopBox=document.getElementById('stops'),addBtn=document.getElementById('odAdd');
+function relabel(){STOPS.forEach((c,i)=>c.el.querySelector('label').textContent='Parada '+(i+1));addBtn.disabled=STOPS.length>=MAXS;addBtn.textContent=STOPS.length>=MAXS?'Máximo de 5 paradas':'+ Adicionar parada'}
+function addStop(val){
+  const el=document.createElement('div');el.className='odf stop';
+  el.innerHTML='<label></label><input type="text" placeholder="Cidade da parada" autocomplete="off"><button class="x" title="Remover parada">×</button><ul class="ac" hidden></ul>';
+  stopBox.appendChild(el);const c=new Combo(el);c.el=el;STOPS.push(c);
+  c.onclear=()=>{STOPS.splice(STOPS.indexOf(c),1);el.remove();relabel();if(ROUTES.length)calc()};
+  if(val)c.set(val);relabel();return c;
+}
+addBtn.onclick=()=>{if(STOPS.length<MAXS)addStop().inp.focus()};
+relabel();
 const msg=(t,err)=>{const m=document.getElementById('odMsg');m.textContent=t||'';m.className=err?'err':''};
 
 /* ---- índice espacial dos trechos concedidos para reconhecer a concessão sob a rota ---- */
@@ -1197,6 +1224,7 @@ function draw(){
   r.an.runs.forEach(run=>{if(!run.c)return;const pts=[run.p[0].a].concat(run.p.map(p=>p.b));
     L.polyline(pts,{renderer:rtR,color:colorOf[run.c],weight:6,opacity:1}).bindTooltip(`${run.c}: ${fmt1(run.km)} km`,{sticky:true}).addTo(rtLayer)});
   pin(r.de,'#1a7f37').addTo(rtLayer);pin(r.para,'#b42318').addTo(rtLayer);
+  (r.stops||[]).forEach((p,i)=>L.marker([p.lat,p.lon],{pane:'rt',icon:L.divIcon({className:'',html:`<div class="stoppin">${i+1}</div>`})}).bindTooltip('Parada '+(i+1)+': '+lab(p),{direction:'top',offset:[0,-10]}).addTo(rtLayer));
 }
 function dur(s){const h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h?`${h} h ${String(m).padStart(2,'0')} min`:`${m} min`}
 function renderRes(){
@@ -1217,17 +1245,21 @@ function clearRoutes(){ROUTES=[];SEL=0;draw();document.getElementById('odRes').i
 async function calc(){
   const de=cDe.value,para=cPara.value;
   if(!de||!para){msg('Escolha a origem e o destino na lista de cidades.',true);return}
-  if(de===para){msg('Origem e destino são a mesma cidade.',true);return}
+  if(STOPS.some(c=>!c.value&&c.inp.value.trim())){msg('Escolha a cidade de cada parada na lista (ou remova a parada).',true);return}
+  const stops=STOPS.map(c=>c.value).filter(Boolean);
+  const pts=[de,...stops,para];
+  if(pts.some((p,i)=>i&&p===pts[i-1])){msg('Há dois pontos seguidos iguais no trajeto.',true);return}
   const go=document.getElementById('odGo');go.disabled=true;go.textContent='Calculando…';msg('');
-  const url=`https://router.project-osrm.org/route/v1/driving/${de.lon},${de.lat};${para.lon},${para.lat}?alternatives=3&overview=full&geometries=geojson`;
+  // com paradas o OSRM devolve uma rota só (não calcula alternativas para mais de dois pontos)
+  const url=`https://router.project-osrm.org/route/v1/driving/${pts.map(p=>p.lon+','+p.lat).join(';')}?alternatives=${stops.length?'false':'3'}&overview=full&geometries=geojson`;
   try{
     const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
     const res=await fetch(url,{signal:ctl.signal});clearTimeout(to);
     const d=await res.json();
     if(d.code!=='Ok'||!d.routes||!d.routes.length){msg('Não foi encontrada rota entre essas cidades.',true);clearRoutes();return}
-    ROUTES=d.routes.slice(0,4).map(r=>{const coords=r.geometry.coordinates.map(c=>[c[1],c[0]]);return {de,para,coords,km:r.distance/1000,s:r.duration,an:analyse(coords)}});
+    ROUTES=d.routes.slice(0,4).map(r=>{const coords=r.geometry.coordinates.map(c=>[c[1],c[0]]);return {de,para,stops,coords,km:r.distance/1000,s:r.duration,an:analyse(coords)}});
     SEL=0;draw();renderRes();select(0);
-    msg(ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
+    msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
   }catch(e){
     if(window.console)console.error('[rota]',e);
     clearRoutes();
@@ -1235,8 +1267,37 @@ async function calc(){
   }finally{go.disabled=false;go.textContent='Calcular rotas'}
 }
 document.getElementById('odGo').onclick=calc;
-document.getElementById('odClr').onclick=()=>{cDe.set(null);cPara.set(null);clearRoutes()};
-document.getElementById('odSwap').onclick=()=>{const a=cDe.value,b=cPara.value;cDe.set(b);cPara.set(a);if(ROUTES.length&&a&&b)calc()};
+document.getElementById('odClr').onclick=()=>{cDe.set(null);cPara.set(null);STOPS.splice(0).forEach(c=>c.el.remove());relabel();clearRoutes()};
+document.getElementById('odSwap').onclick=()=>{const a=cDe.value,b=cPara.value;cDe.set(b);cPara.set(a);
+  const sv=STOPS.map(c=>c.value).reverse();STOPS.forEach((c,i)=>c.set(sv[i]));if(ROUTES.length&&a&&b)calc()};
+
+/* ---- busca de cidade ou estado ---- */
+const UFN={AC:'Acre',AL:'Alagoas',AM:'Amazonas',AP:'Amapá',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MG:'Minas Gerais',MS:'Mato Grosso do Sul',MT:'Mato Grosso',PA:'Pará',PB:'Paraíba',PE:'Pernambuco',PI:'Piauí',PR:'Paraná',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RO:'Rondônia',RR:'Roraima',RS:'Rio Grande do Sul',SC:'Santa Catarina',SE:'Sergipe',SP:'São Paulo',TO:'Tocantins'};
+const EST=Object.entries(UFN).map(([uf,n])=>({t:'e',n,uf,k:norm(n)}));
+function searchAll(q){
+  const nq=norm(q).trim();if(!nq)return [];
+  const es=EST.filter(e=>e.k.startsWith(nq)||(nq.length===2&&e.uf.toLowerCase()===nq)||(nq.length>=4&&e.k.includes(nq)));
+  return es.slice(0,3).concat(searchMun(q)).slice(0,8);
+}
+(function(){
+  const el=document.getElementById('fBusca'),inp=el.querySelector('input'),ul=el.querySelector('.ac'),x=el.querySelector('.x');
+  let items=[],act=-1;const lyr=L.layerGroup().addTo(map);
+  const render=()=>{if(!items.length){ul.hidden=true;return}
+    ul.innerHTML=items.map((p,i)=>`<li data-i="${i}" class="${i===act?'on':''}">${p.n} <small>${p.t==='e'?'':p.uf}</small><span class="tp">${p.t==='e'?'estado':p.cap?'capital':'município'}</span></li>`).join('');ul.hidden=false};
+  const go=p=>{lyr.clearLayers();inp.value=p.t==='e'?p.n:lab(p);el.dataset.f='1';ul.hidden=true;
+    if(p.t==='e'){const u=UFS.find(z=>z[0]===p.uf);if(u){const g=L.polygon(u[1],{pane:'mask',color:'#071d41',weight:2.5,fill:false,interactive:false}).addTo(lyr);map.fitBounds(g.getBounds(),{padding:[30,30]})}}
+    else{L.marker([p.lat,p.lon],{pane:'rt',interactive:false,icon:L.divIcon({className:'',html:'<div class="buscapin"></div>'})}).bindTooltip(lab(p),{permanent:true,direction:'right',offset:[8,0]}).addTo(lyr);map.setView([p.lat,p.lon],11)}};
+  inp.addEventListener('input',()=>{el.dataset.f=inp.value?'1':'0';items=searchAll(inp.value);act=items.length?0:-1;render()});
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){act=Math.min(items.length-1,act+1);render();e.preventDefault()}
+    else if(e.key==='ArrowUp'){act=Math.max(0,act-1);render();e.preventDefault()}
+    else if(e.key==='Enter'){if(items[act])go(items[act]);e.preventDefault()}
+    else if(e.key==='Escape')ul.hidden=true});
+  inp.addEventListener('blur',()=>setTimeout(()=>ul.hidden=true,150));
+  ul.addEventListener('mousedown',e=>e.preventDefault());
+  ul.addEventListener('click',e=>{const li=e.target.closest('li');if(li)go(items[+li.dataset.i])});
+  x.addEventListener('click',()=>{inp.value='';el.dataset.f='0';lyr.clearLayers();ul.hidden=true;inp.focus()});
+})();
 })();
 
 </script>
