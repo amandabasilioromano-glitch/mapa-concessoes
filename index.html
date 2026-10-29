@@ -1259,8 +1259,9 @@ function routeIndex(co){const S=[0];for(let i=1;i<co.length;i++)S.push(S[i-1]+ha
     for(let i=0;i<co.length-1;i++){const a=co[i],b=co[i+1];if(Math.abs(a[0]-lat)>0.05&&Math.abs(b[0]-lat)>0.05)continue;
       const ax=(a[1]-lon)*kx,ay=(a[0]-lat)*ky,bx=(b[1]-lon)*kx,by=(b[0]-lat)*ky,dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy;
       let t=L2?-(ax*dx+ay*dy)/L2:0;t=Math.max(0,Math.min(1,t));const dd=Math.hypot(ax+t*dx,ay+t*dy);
-      if(dd<best.d)best={d:dd,s:S[i]+t*(S[i+1]-S[i]),east:dx}}return best};
+      if(dd<best.d)best={d:dd,s:S[i]+t*(S[i+1]-S[i]),east:dx,north:dy}}return best};
   return {near,len:S[S.length-1]}}
+window._tolls=(...a)=>tolls(...a);
 function tolls(rt){
   const R=routeIndex(rt.coords),ds=document.getElementById('odData').value,h0=+document.getElementById('odHora').value;
   const vi=+document.getElementById('odVeic').value,VE=VEIC[vi];
@@ -1268,14 +1269,20 @@ function tolls(rt){
   const at=s=>new Date(dep.getTime()+rt.s*1000*(s/Math.max(R.len,1e-6)));
   const fmtD=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
   const items=[],notes=new Set(),seen=new Set(),motoSem=new Set();
-  PED.forEach(p=>{if(/^RMSP/.test(p[1]))return;const n=R.near(p[3],p[4]);if(n.d>1.5)return;
+  // praças com um ponto por sentido: escolhe o ponto do sentido da viagem
+  const grp=new Map();PED.forEach(p=>{if(/^RMSP/.test(p[1]))return;const n=R.near(p[3],p[4]);if(n.d>1.5)return;
+    const g=p[0]+'|'+p[2].replace(/[AB]$/,'');if(!grp.has(g))grp.set(g,[]);grp.get(g).push([p,n])});
+  const pick=[];grp.forEach(c=>{if(c.length>1){const nv=c.filter(x=>!/^Validador/.test(x[0][1]));if(nv.length)c=nv}
+    if(c.length>1){const dir=c.find(x=>/\b(Norte|Sul)\b/.test(x[0][1])&&(/\bNorte\b/.test(x[0][1])===(x[1].north>0)));if(dir){pick.push(dir);return}}
+    pick.push(c.reduce((a,b)=>b[1].d<a[1].d?b:a))});
+  pick.forEach(([p,n])=>{
     const base=p[2].replace(/[AB]$/,''),k=p[0]+'|'+base,kn=p[0]+'|'+p[1].replace(/\s*\(B\)$/,'').replace(/\s*-\s*(Norte|Sul|Decrescente)$/,'');if(seen.has(k)||seen.has(kn))return;seen.add(kn);
     const ow=ONEWAY[p[0]+'|'+p[2]];if(ow&&Math.sign(n.east)!==ow){seen.add(k);notes.add(`${p[0]} ${p[2]} – ${p[1]}: cobrança só no outro sentido.`);return}
     seen.add(k);const dt=at(n.s),wk=[0,6].includes(dt.getDay());let v=p[6]?p[6][vi]:null;
     if(wk&&p[7]&&p[7][vi]!=null){v=p[7][vi];notes.add('Tarifa de fim de semana aplicada em '+p[1]+'.')}
     if(v!=null&&vi>=9&&SEM7.has(p[0]))notes.add(`${p[0]}: a tabela da ANTT vai até 6 eixos; para ${vi+(vi===9?-2:-2)} eixos foi usado o multiplicador por eixo (${VE[1]}× a tarifa do automóvel).`);
     if(v==null){if(vi===1)motoSem.add(p[0]);else notes.add(`${p[0]} ${p[2]} – ${p[1]}: sem tarifa publicada.`)}
-    items.push({tipo:p[5]?'ff':'pr',c:p[0],num:base,nome:p[1],v:v||0,s:n.s})});
+    items.push({tipo:p[5]?'ff':'pr',c:p[0],num:base,nome:p[1].replace(/\s*(\((Norte|Sul)\)|-\s*(Norte|Sul|Decrescente))$/,''),v:v||0,s:n.s})});
   // Free Flow da Dutra (Grande SP)
   let ffr=null;
   FFDATA.sentidos.forEach(se=>{const m=se.porticos.map(p=>({p,n:R.near(p.lat,p.lon)})).filter(o=>o.n.d<=0.3).sort((a,b)=>a.n.s-b.n.s);
@@ -1287,7 +1294,6 @@ function tolls(rt){
   if(ffr){items.push({tipo:'rmsp',c:'Motiva RioSP',num:'',nome:`Free Flow Grande SP: ${ffr.e} → ${ffr.x}`,v:ffr.v,s:ffr.s});
     notes.add(ffr.aruja?'Free Flow da Grande SP: quem passa pela Praça de Arujá não paga a tarifa do Free Flow.':
       `Free Flow da Grande SP: pista expressa, ${TIPOS[ffr.tipo]} às ${String(ffr.hr).padStart(2,'0')}h${ffr.of?'':' (tipo de dia estimado após '+FFDATA.calFim+')'}; pela pista marginal não há cobrança.`)}
-  if(motoSem.size)notes.add(`Motocicleta: a tabela da ANTT não traz valor ("-") em ${[...motoSem].join(', ')}; essas praças entram como R$ 0.`);
   items.sort((a,b)=>a.s-b.s);
   const sum=t=>items.filter(i=>t.includes(i.tipo)).reduce((a,i)=>a+i.v,0);
   return {items,pr:sum(['pr']),ff:sum(['ff']),rmsp:sum(['rmsp']),total:sum(['pr','ff','rmsp']),notes:[...notes]};
