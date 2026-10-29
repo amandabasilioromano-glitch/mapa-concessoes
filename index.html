@@ -837,8 +837,8 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
           <div id="stops"></div>
           <div class="odf" id="fPara"><label>Destino</label><input type="text" placeholder="Cidade (ex.: Cuiabá)" autocomplete="off"><button class="x" title="Limpar">×</button><ul class="ac" hidden></ul></div>
           <button class="addstop" id="odAdd" type="button">+ Adicionar parada</button>
-          <div class="odwhen"><div><label>Data da viagem</label><input type="date" id="odData"></div><div><label>Saída</label><select id="odHora"></select></div></div>
-          <div class="odwhen"><div><label>Tipo de veículo</label><select id="odVeic"></select></div></div>
+          <div class="odwhen" style="display:none"><div><label>Data da viagem</label><input type="date" id="odData"></div><div><label>Saída</label><select id="odHora"></select></div></div>
+          <div class="odwhen" style="display:none"><div><label>Tipo de veículo</label><select id="odVeic"></select></div></div>
           <div class="odrow"><button class="btn swap" id="odSwap" title="Inverter origem e destino">⇅</button><button class="btn pri" id="odGo">Calcular rotas</button><button class="btn" id="odClr" style="flex:none;width:70px">Limpar</button></div>
           <div id="odMsg"></div>
           <div id="odRes"></div>
@@ -1052,7 +1052,7 @@ const PEDC={pr:'#0b2e6b',ff:'#e8590c'};
 const pedLayer=L.layerGroup().addTo(map);
 const pedPts=PED.map(p=>{const ff=!!p[5];
   const m=L.circleMarker([p[3],p[4]],{renderer:pedR,pane:'ped',radius:5,color:'#ffffff',weight:1.6,fillColor:ff?PEDC.ff:PEDC.pr,fillOpacity:1});
-  m.bindPopup(`<div class="pp-t">${p[2]} – ${p[1]}</div><table class="pp"><tr><td>Tipo</td><td>${ff?'Free flow':'Praça de pedágio'}</td></tr><tr><td>Concessionária</td><td>${p[0]}</td></tr>${p[6]&&p[6][0]!=null?`<tr><td>Tarifa (automóvel)</td><td>${p[6][0].toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}${p[7]?' · fim de semana '+p[7][0].toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):''}</td></tr>`:/^RMSP/.test(p[1])?'<tr><td>Tarifa</td><td>varia por trecho, dia e hora (calculada na rota)</td></tr>':''}<tr><td>Coordenadas</td><td>${p[3].toFixed(5)}, ${p[4].toFixed(5)}</td></tr></table>`);
+  m.bindPopup(`<div class="pp-t">${p[2]} – ${p[1]}</div><table class="pp"><tr><td>Tipo</td><td>${ff?'Free flow':'Praça de pedágio'}</td></tr><tr><td>Concessionária</td><td>${p[0]}</td></tr><tr><td>Coordenadas</td><td>${p[3].toFixed(5)}, ${p[4].toFixed(5)}</td></tr></table>`);
   m.bindTooltip(`${p[2]} – ${p[1]}`,{direction:'top',offset:[0,-4]});
   return {p,ff,m}});
 map.on('zoomend',()=>{const r=map.getZoom()>=9?7:map.getZoom()>=7?6:5;pedPts.forEach(o=>o.m.setRadius(r))});
@@ -1260,7 +1260,7 @@ const SEM7=new Set(['Autopista Litoral Sul','Autopista Planalto Sul','Autopista 
   hh.innerHTML=Array.from({length:24},(_,h)=>`<option value="${h}">${String(h).padStart(2,'0')}:00</option>`).join('');
   dd.value=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);hh.value=String(d.getHours());
   const vv=document.getElementById('odVeic');vv.innerHTML=VEIC.map((v,i)=>`<option value="${i}">${v[0]}</option>`).join('');
-  const re=()=>{if(ROUTES.length){ROUTES.forEach(rt=>rt.toll=tolls(rt));renderRes()}};dd.onchange=re;hh.onchange=re;vv.onchange=re;})();
+  const re=()=>{if(ROUTES.length){renderRes()}};dd.onchange=re;hh.onchange=re;vv.onchange=re;})();
 const ONEWAY={'Ecovias Ponte|P01':+1,'Autopista Fluminense|P04':-1}; // +1: cobra indo para leste; -1: indo para oeste
 const TIPOS={util:'dia útil',sab:'sábado',dom:'domingo',idaF:'ida de feriado',emenda:'emenda de feriado',voltaF:'volta de feriado'};
 function tipoDia(ds){if(FFDATA.cal[ds])return [FFDATA.cal[ds],true];const w=new Date(ds+'T12:00:00').getDay();return [w===6?'sab':w===0?'dom':'util',false]}
@@ -1335,11 +1335,11 @@ function renderRes(){
     const bar=a.runs.map(run=>`<span style="flex:${run.km};background:${run.c?colorOf[run.c]:'#d0d5dd'}"></span>`).join('');
     const list=i===SEL?`<ul class="rlist">${a.conc.map(o=>`<li><span class="sw" style="background:${colorOf[o.c]}"></span><span>${o.c}<br><small style="color:var(--muted)">${o.rods.join(', ')}</small></span><span class="n">${fmt1(o.km)} km</span></li>`).join('')}<li><span class="sw" style="background:#d0d5dd"></span><span>Fora de concessão federal</span><span class="n">${fmt1(fora)} km</span></li></ul>`:'';
     const T=r.toll,brl=v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const tl=i===SEL?`<div class="toll"><div class="tt"><span>Pedágio total<br><small style="font-weight:400;color:var(--muted)">${VEIC[+document.getElementById('odVeic').value][0]}</small></span><b>${brl(T.total)}</b></div>
+    const tl=false?`<div class="toll"><div class="tt"><span>Pedágio total<br><small style="font-weight:400;color:var(--muted)">${VEIC[+document.getElementById('odVeic').value][0]}</small></span><b>${brl(T.total)}</b></div>
       <div class="sub"><span>Praças</span><span>${brl(T.pr)}</span></div><div class="sub"><span>Free flow</span><span>${brl(T.ff+T.rmsp)}</span></div>
       ${T.items.length?`<ul>${T.items.map(it=>`<li><span class="pd" style="background:${it.tipo==='pr'?'#0b2e6b':'#e8590c'}"></span><span>${it.num?it.num+' – ':''}${it.nome}<br><small style="color:var(--muted)">${it.c} · ${it.tipo==='pr'?'praça':'free flow'}</small></span><span class="v">${brl(it.v)}</span></li>`).join('')}</ul>`:'<div class="nt">Sem pedágio federal nesta rota.</div>'}
       ${T.notes.length?`<div class="nt">${T.notes.join('<br>')}</div>`:''}<div class="nt">Tarifa cheia, sem desconto de TAG. Fonte: ANTT.</div></div>`:'';
-    return `<div class="rcard${i===SEL?' sel':''}" data-i="${i}"><div class="h"><b>Rota ${i+1}</b>${fmt1(r.km)} km<span>~${dur(r.s)}</span></div><div class="via" style="color:#0b2e6b;font-weight:600">Pedágio: ${brl(T.total)}</div>
+    return `<div class="rcard${i===SEL?' sel':''}" data-i="${i}"><div class="h"><b>Rota ${i+1}</b>${fmt1(r.km)} km<span>~${dur(r.s)}</span></div>
       <div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
    + (ROUTES.length?'<div style="font-size:11px;color:var(--muted);margin-top:8px">Rotas: OSRM / © OpenStreetMap. Distância e tempo estimados.</div>':'');
   box.querySelectorAll('.rcard').forEach(c=>c.onclick=()=>select(+c.dataset.i));
@@ -1377,7 +1377,7 @@ async function calc(){
     const res=await fetch(url,{signal:ctl.signal});clearTimeout(to);
     const d=await res.json();
     if(d.code!=='Ok'||!d.routes||!d.routes.length){msg('Não foi encontrada rota entre essas cidades.',true);clearRoutes();return}
-    ROUTES=d.routes.slice(0,4).map(r=>{const coords=r.geometry.coordinates.map(c=>[c[1],c[0]]);const o={de,para,stops,coords,km:r.distance/1000,s:r.duration,an:analyse(coords)};o.toll=tolls(o);return o});
+    ROUTES=d.routes.slice(0,4).map(r=>{const coords=r.geometry.coordinates.map(c=>[c[1],c[0]]);const o={de,para,stops,coords,km:r.distance/1000,s:r.duration,an:analyse(coords)};return o});
     SEL=0;draw();renderRes();select(0);
     msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
   }catch(e){
