@@ -700,7 +700,7 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 #clear{margin:12px 18px 0;padding:8px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;font-size:13px;width:calc(100% - 36px)}
 #clear:hover{background:var(--bg)}
 #foot{font-size:11px;color:var(--muted);padding:10px 18px;border-top:1px solid var(--line);line-height:1.45}
-#map{flex:1;background:#dfe6ee}
+#map{flex:1;background:#d9e3ee}
 .leaflet-popup-content{font-size:13px;margin:12px 14px;line-height:1.5}
 .pp-t{font-weight:650;font-size:14px;margin-bottom:4px}
 .pp td{padding:1px 10px 1px 0;vertical-align:top}.pp td:first-child{color:var(--muted)}
@@ -766,7 +766,9 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 #map.sat .uflbl{color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
 #map.sat .caplbl{color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 0 3px #000}
 #map.sat .caplbl i{border-color:#fff;background:#222}
-.tile-gray{filter:grayscale(1) brightness(1.06) contrast(.92)}
+.munlbl{position:relative;font:11px "Segoe UI",Roboto,Arial,sans-serif;color:#5b6475;white-space:nowrap;transform:translate(6px,-50%);text-shadow:0 0 3px #fff,0 0 3px #fff}
+.munlbl i{position:absolute;left:-8px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:#7a8396}
+#map.sat .munlbl{color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}#map.sat .munlbl i{background:#fff}
 #toggle{display:none}
 @media (max-width:760px){
   #side{position:absolute;z-index:1000;height:100%;transform:translateX(-100%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.15)}
@@ -831,8 +833,9 @@ const attr='Mapa: Esri, HERE, Garmin, © OpenStreetMap | Dados: ANTT';
 const T=(u,m)=>L.tileLayer(ESRI+u+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:m,attribution:attr});
 const bases={
   // sem as camadas de rótulos da Esri (em inglês); os nomes em português são desenhados pelo próprio mapa
-  claro:L.layerGroup([L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,className:'tile-gray',attribution:'© OpenStreetMap | Dados: ANTT'})]),
-  ruas:L.layerGroup([L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap | Dados: ANTT'})]),
+  // Claro: desenhado pelo próprio mapa (UFs, capitais e municípios em português), sem depender de serviço externo
+  claro:L.layerGroup(),
+  ruas:L.layerGroup([T('World_Street_Map',19)]),
   satelite:L.layerGroup([T('World_Imagery',19)])
 };
 // UF outlines: always shown, so the map still has context if tiles cannot load
@@ -857,6 +860,15 @@ UFS.forEach(([sg,polys])=>{
 const capLabels=L.layerGroup();
 MUNRAW.split(';').forEach(r=>{const a=r.split('|');if(a[4]!=='1')return;
   capLabels.addLayer(L.marker([+a[2],+a[3]],{pane:'lbl',interactive:false,icon:L.divIcon({className:'',html:'<div class="caplbl"><i></i>'+a[0]+'</div>'})}))});
+const munLabels=L.layerGroup();let MUNL=null;
+function refreshMun(){
+  munLabels.clearLayers();if(!map.hasLayer(munLabels)||map.getZoom()<8)return;
+  if(!MUNL)MUNL=MUNRAW.split(';').map(r=>{const a=r.split('|');return [a[0],+a[2],+a[3],a[4]==='1']}).filter(m=>!m[3]);
+  const b=map.getBounds().pad(.1);let n=0;
+  for(const m of MUNL){if(!b.contains([m[1],m[2]]))continue;if(++n>600)break;
+    munLabels.addLayer(L.marker([m[1],m[2]],{pane:'lbl',interactive:false,icon:L.divIcon({className:'',html:'<div class="munlbl"><i></i>'+m[0]+'</div>'})}))}
+}
+map.on('moveend',refreshMun);
 const ufGroup=L.layerGroup([ufLayer,ufLabels]).addTo(map);
 let baseKey=null,tileOk=false,tileFail=false;
 function setBase(k){
@@ -864,9 +876,11 @@ function setBase(k){
   baseKey=k;if(bases[k])bases[k].addTo(map);
   // contorno das UFs: preenchido no claro (ou sem fundo); só a linha nos demais
   const sat=k==='satelite',plain=k==='claro'||!bases[k];
-  ufLayer.eachLayer(l=>l.setStyle({color:sat?'#ffffff':'#8a94a6',weight:sat?.8:1,opacity:sat?.7:1,fillOpacity:plain?.35:0}));
-  // OpenStreetMap (claro e ruas) já traz os nomes em português; os rótulos próprios ficam para o satélite e para quando não há fundo
-  const own=sat||!bases[k];
+  ufLayer.eachLayer(l=>l.setStyle({color:sat?'#ffffff':'#8a94a6',weight:sat?.8:1,opacity:sat?.7:1,fillColor:'#f7f8fa',fillOpacity:plain?1:0}));
+  maskLayer.eachLayer(l=>l.setStyle({fillColor:plain?'#eceef2':'#e8ecf1'}));
+  // rótulos próprios (português) no claro e no satélite; o fundo de ruas já traz os nomes
+  const own=k!=='ruas';
+  if(own)munLabels.addTo(map);else map.removeLayer(munLabels);refreshMun();
   if(own)ufLabels.addTo(ufGroup);else ufGroup.removeLayer(ufLabels);
   if(own)capLabels.addTo(map);else map.removeLayer(capLabels);
   document.getElementById('map').classList.toggle('sat',sat);
@@ -930,7 +944,7 @@ document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreen
 if(!(document.fullscreenEnabled||document.webkitFullscreenEnabled)){const f=document.querySelector('.fs');if(f)f.style.display='none'}
 Object.values(bases).forEach(g=>g.eachLayer(l=>{l.on('tileload',()=>tileOk=true);l.on('tileerror',()=>{if(!tileOk&&!tileFail){tileFail=true;setTimeout(noTiles,300)}})}));
 // se o ambiente bloquear imagens externas, o fundo da Esri não carrega: fica só o contorno das UFs, sem seletor
-function noTiles(){if(tileOk)return;setBase(null);const bm=document.querySelector('.bm');if(bm)bm.style.display='none'}
+function noTiles(){if(tileOk)return;setBase('claro');const bm=document.querySelector('.bm');if(bm)bm.style.display='none'}
 setBase('claro');
 L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
 
