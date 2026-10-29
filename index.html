@@ -1118,10 +1118,14 @@ DIMS.forEach(d=>{
     cb.addEventListener('change',()=>{cb.checked?sel[d.key].add(v):sel[d.key].delete(v);update(true)});
     d.opts.appendChild(lab);d.rows[v]={lab,cb,n:lab.querySelector('.n')};
   });
-  d.q.addEventListener('input',()=>{const q=norm(d.q.value);d.values.forEach(v=>d.rows[v].lab.style.display=norm(v).includes(q)?'':'none')});
+  d.q.addEventListener('input',()=>rowVis(d));
   el.querySelector('[data-a=all]').onclick=()=>{d.values.forEach(v=>{const r=d.rows[v];if(r.lab.style.display!=='none'&&!r.lab.classList.contains('dim'))sel[d.key].add(v)});update(true)};
   el.querySelector('[data-a=none]').onclick=()=>{sel[d.key].clear();update(true)};
 });
+// rodovias que só aparecem como trecho coincidente (a concessão é de outra BR) não entram na lista
+function rowVis(d){const q=norm(d.q.value);let ok=null;
+  if(d.key==='r'){ok=new Set();SEG.forEach(s=>{if(!sel.k.size||sel.k.has(s.k))ok.add(s.r)});}
+  d.values.forEach(v=>d.rows[v].lab.style.display=norm(v).includes(q)&&(!ok||ok.has(v)||sel.r.has(v))?'':'none')}
 function norm(s){return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()}
 
 // totais do topo: com uma rota calculada, mostram o que está sob concessão federal na rota escolhida
@@ -1141,7 +1145,7 @@ function update(fit){
   DIMS.forEach(d=>{
     const cnt={};SEG.forEach(s=>{if(pass(s,d.key))cnt[s[d.key]]=(cnt[s[d.key]]||0)+s.km});
     d.values.forEach(v=>{const r=d.rows[v];r.cb.checked=sel[d.key].has(v);r.n.textContent=cnt[v]?fmt1(cnt[v])+' km':'';r.lab.classList.toggle('dim',!cnt[v]&&!sel[d.key].has(v))});
-    d.badge.textContent=sel[d.key].size||'';
+    rowVis(d);d.badge.textContent=sel[d.key].size||'';
   });
   updatePed();updateRec();
   if(window.updateLegend)updateLegend();
