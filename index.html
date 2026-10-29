@@ -735,14 +735,15 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .rlist .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted)}
 .odpin{width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1.5px #071d41;transform:translate(-50%,-50%)}
 
-.mapbar{display:flex;gap:10px;align-items:center}
-.bm,.fs{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.22)}
-.bm{display:flex;padding:3px;gap:2px}
-.bm button{border:0;background:none;padding:7px 12px;border-radius:6px;font:600 13.5px "Segoe UI",Roboto,Arial,sans-serif;color:#33415c;cursor:pointer}
-.bm button:hover{background:#f0f2f5}
-.bm button.on{background:#071d41;color:#fff}
-.fs{border:0;display:flex;align-items:center;gap:7px;padding:10px 13px;font:600 13.5px "Segoe UI",Roboto,Arial,sans-serif;color:#1d2433;cursor:pointer}
-.fs:hover{background:#f6f7f9}
+.mapbar{display:flex;align-items:stretch;gap:8px;font-family:"Trebuchet MS","Segoe UI",Roboto,Arial,sans-serif}
+.bm,.fs{background:#f4f7fb;border:1px solid #c9d4e3;border-radius:6px;box-shadow:0 1px 4px rgba(19,81,180,.15)}
+.bm{display:flex;align-items:center;padding:0 4px 0 10px;gap:2px}
+.bm .lb{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#7a879a;margin-right:6px}
+.bm button{border:0;background:none;padding:8px 9px 6px;font:inherit;font-size:13px;font-weight:600;color:#4f5d73;cursor:pointer;border-bottom:3px solid transparent}
+.bm button:hover{color:#1351b4}
+.bm button.on{color:#1351b4;border-bottom-color:#1351b4}
+.fs{display:flex;align-items:center;gap:7px;padding:0 12px;font:inherit;font-size:13px;font-weight:600;color:#1351b4;cursor:pointer}
+.fs:hover{background:#1351b4;border-color:#1351b4;color:#fff}
 #od{margin:12px 12px 6px;border:1px solid #c7d7f2;border-radius:10px;background:#edf3fd}
 #od summary{padding:11px 14px;color:#0b3a82}
 #od summary::before{content:"";width:9px;height:9px;border-radius:50%;background:#1a7f37;box-shadow:0 0 0 2px #fff,0 0 0 3px #1a7f37;margin-right:4px}
@@ -965,7 +966,7 @@ function setBase(k){
 }
 const MapBar=L.Control.extend({onAdd(){
   const d=L.DomUtil.create('div','mapbar');
-  d.innerHTML='<div class="bm"><button data-k="claro">Claro</button><button data-k="ruas">Ruas</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Tela cheia</span></button>';
+  d.innerHTML='<div class="bm"><span class="lb">Mapa</span><button data-k="claro">Simplificado</button><button data-k="ruas">Sistema viário</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><span>Expandir mapa</span></button>';
   L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);
   d.querySelectorAll('.bm button').forEach(b=>b.onclick=()=>setBase(b.dataset.k));
   d.querySelector('.fs').onclick=()=>{
@@ -1018,7 +1019,7 @@ window.updateLegend=function(){
   if(first&&!legPos){if(!legEl.style.width){legEl.style.width='400px';legEl.style.height='390px'}fitLegend();requestAnimationFrame(()=>{const m=document.getElementById('map');legEl.style.left='20px';legEl.style.top=Math.max(70,m.clientHeight-legEl.offsetHeight-90)+'px'})}
 };
 
-document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;document.getElementById('map').classList.toggle('isfs',on);if(window.updateLegend)updateLegend();const s=document.querySelector('.fs span');if(s)s.textContent=on?'Sair da tela cheia':'Tela cheia';setTimeout(()=>map.invalidateSize(),150)});
+document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;document.getElementById('map').classList.toggle('isfs',on);if(window.updateLegend)updateLegend();const f=document.querySelector('.fs');if(f){f.querySelector('span').textContent=on?'Sair da tela cheia':'Expandir mapa';f.querySelector('path').setAttribute('d',on?'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7':'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7')}setTimeout(()=>map.invalidateSize(),150)});
 if(!(document.fullscreenEnabled||document.webkitFullscreenEnabled)){const f=document.querySelector('.fs');if(f)f.style.display='none'}
 Object.values(bases).forEach(g=>g.eachLayer(l=>{l.on('tileload',()=>tileOk=true);l.on('tileerror',()=>{if(!tileOk&&!tileFail){tileFail=true;setTimeout(noTiles,300)}})}));
 // se o ambiente bloquear imagens externas, o fundo da Esri não carrega: fica só o contorno das UFs, sem seletor
