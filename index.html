@@ -911,7 +911,8 @@ function setBase(k){
   // contorno das UFs: preenchido no claro (ou sem fundo); só a linha nos demais
   const sat=k==='satelite',plain=k==='claro'||!bases[k];
   ufLayer.eachLayer(l=>l.setStyle({color:sat?'#ffffff':'#8a94a6',weight:sat?.8:1,opacity:sat?.7:1,fillColor:'#f7f8fa',fillOpacity:plain?1:0}));
-  maskLayer.eachLayer(l=>l.setStyle({fillColor:plain?'#eceef2':'#e8ecf1'}));
+  // outros países: cobertos no claro; só esmaecidos no satélite (véu escuro) e nas ruas (véu claro)
+  maskLayer.eachLayer(l=>l.setStyle(plain?{fillColor:'#eceef2',fillOpacity:1}:sat?{fillColor:'#0b1526',fillOpacity:.55}:{fillColor:'#ffffff',fillOpacity:.6}));
   // rótulos próprios (português) no claro e no satélite; o fundo de ruas já traz os nomes
   const own=k!=='ruas';
   if(own)munLabels.addTo(map);else map.removeLayer(munLabels);refreshMun();
