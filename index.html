@@ -823,6 +823,12 @@ body.pfs #side{display:none}
 .ffinfo{font-size:12px;margin-top:6px}.ffsrc{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}.fferr{color:#b42318;font-size:12px}
 .ffpin{width:20px;height:20px;border-radius:50%;color:#fff;font:700 11px/20px Arial;text-align:center;border:2px solid #fff;box-shadow:0 0 0 1.5px #071d41;transform:translate(-50%,-50%)}
 .odwhen{display:flex;gap:8px;margin-bottom:8px}.odwhen>div{flex:1}
+.fsel{position:relative}
+.fsel-b{width:100%;text-align:left;padding:7px 26px 7px 8px;border:1px solid #c7d7f2;border-radius:6px;font:13px inherit;font-family:inherit;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235b6475' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.fsel-l{position:absolute;left:0;right:0;top:100%;margin:2px 0 0;padding:4px 0;list-style:none;background:#fff;border:1px solid #c7d7f2;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.16);max-height:240px;overflow:auto;z-index:50;font-size:13px}
+.fsel-l.up{top:auto;bottom:100%;margin:0 0 2px}
+.fsel-l li{padding:6px 10px;cursor:pointer;white-space:nowrap}.fsel-l li:hover{background:#edf3fd}.fsel-l li.on{background:#1351b4;color:#fff}
+.fsel-b{font-size:13px}
 .odwhen label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
 .odwhen input,.odwhen select{width:100%;padding:7px 8px;border:1px solid #c7d7f2;border-radius:6px;font-size:13px;background:#fff;font-family:inherit}
 .toll{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
@@ -1466,6 +1472,23 @@ const SEM7=new Set(['Autopista Litoral Sul','Autopista Planalto Sul','Autopista 
   dd.value=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);hh.value=String(d.getHours());
   const vv=document.getElementById('odVeic');vv.innerHTML=VEIC.map((v,i)=>`<option value="${i}">${v[0]}</option>`).join('');
   const re=()=>{if(ROUTES.length){ROUTES.forEach(rt=>rt.toll=tolls(rt));renderRes()}};dd.onchange=re;hh.onchange=re;vv.onchange=re;})();
+// listas próprias no lugar do <select>: a lista nativa abre fora do lugar quando a página é ampliada/reduzida (ex.: Power BI)
+function fakeSelect(sel){
+  const w=document.createElement('div');w.className='fsel';sel.parentNode.insertBefore(w,sel);w.appendChild(sel);sel.style.display='none';
+  const bt=document.createElement('button');bt.type='button';bt.className='fsel-b';const ul=document.createElement('ul');ul.className='fsel-l';ul.hidden=true;w.appendChild(bt);w.appendChild(ul);
+  const lab=()=>{const o=sel.options[sel.selectedIndex];bt.textContent=o?o.text:''};lab();sel.addEventListener('change',lab);
+  const close=()=>{ul.hidden=true;document.removeEventListener('mousedown',out,true)};
+  const out=e=>{if(!w.contains(e.target))close()};
+  bt.onclick=()=>{if(!ul.hidden){close();return}
+    ul.innerHTML=[...sel.options].map((o,i)=>`<li data-i="${i}" class="${i===sel.selectedIndex?'on':''}">${o.text}</li>`).join('');
+    ul.hidden=false;ul.classList.remove('up');const sc=w.closest('#filters')||document.body,sr=sc.getBoundingClientRect(),br=bt.getBoundingClientRect();
+    if(br.bottom+ul.offsetHeight>sr.bottom&&br.top-ul.offsetHeight>sr.top)ul.classList.add('up');
+    const on=ul.querySelector('.on');if(on)ul.scrollTop=on.offsetTop-ul.clientHeight/2;
+    document.addEventListener('mousedown',out,true)};
+  ul.onclick=e=>{const li=e.target.closest('li');if(!li)return;sel.selectedIndex=+li.dataset.i;sel.dispatchEvent(new Event('change'));close()};
+  bt.onkeydown=e=>{if(e.key==='Escape')close();if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const n=sel.selectedIndex+(e.key==='ArrowDown'?1:-1);if(n>=0&&n<sel.options.length){sel.selectedIndex=n;sel.dispatchEvent(new Event('change'))}}};
+}
+fakeSelect(document.getElementById('odHora'));fakeSelect(document.getElementById('odVeic'));
 const ONEWAY={'Ecovias Ponte|P01':+1,'Autopista Fluminense|P04':-1}; // +1: cobra indo para leste; -1: indo para oeste
 const TIPOS={util:'dia útil',sab:'sábado',dom:'domingo',idaF:'ida de feriado',emenda:'emenda de feriado',voltaF:'volta de feriado'};
 function tipoDia(ds){if(FFDATA.cal[ds])return [FFDATA.cal[ds],true];const w=new Date(ds+'T12:00:00').getDay();return [w===6?'sab':w===0?'dom':'util',false]}
