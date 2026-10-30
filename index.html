@@ -1177,8 +1177,8 @@ const DIMS=[
 const DEF={k:['-']};
 const sel={c:new Set(),r:new Set(),u:new Set(),k:new Set(DEF.k)};
 // filtro de km: corta as linhas no intervalo escolhido
-const KMAX=Math.ceil(Math.max(...SEG.map(s=>s.kf||0)));const KM={a:0,b:KMAX};
-const kmOn=()=>KM.a>0||KM.b<KMAX;
+const KMAX=Math.ceil(Math.max(...SEG.map(s=>s.kf||0)));const KM={a:0,b:KMAX},KR={lo:0,hi:KMAX}; // KR: faixa de km dos trechos que passam pelos outros filtros
+const kmOn=()=>KM.a>KR.lo+.05||KM.b<KR.hi-.05;
 function kmFrac(s){if(!kmOn())return 1;if(s.ki==null||s.kf==null)return 0;const L=s.kf-s.ki;
   if(L<=0)return s.ki>=KM.a&&s.ki<=KM.b?1:0;return Math.max(0,Math.min(s.kf,KM.b)-Math.max(s.ki,KM.a))/L}
 const passBase=(s,skip)=>DIMS.every(d=>d.key===skip||!sel[d.key].size||sel[d.key].has(s[d.key]))&&(skip==='km'||kmFrac(s)>0);
@@ -1212,20 +1212,21 @@ const kmEl=document.createElement('details');kmEl.className='flt';kmEl.id='kmf';
 kmEl.innerHTML=`<summary>km <span class="badge"></span><span class="chev">›</span></summary><div class="fbody">
   <div class="kmin"><input type="number" id="kmA" min="0" step="0.1" aria-label="km inicial"><span>a</span><input type="number" id="kmB" min="0" step="0.1" aria-label="km final"></div>
   <div class="rng"><div class="tr"></div><div class="on"></div><input type="range" id="kmRa" min="0" max="${KMAX}" step="0.1"><input type="range" id="kmRb" min="0" max="${KMAX}" step="0.1"></div>
-  <div class="hint">Mostra só o trecho entre esses km. Use junto com uma rodovia selecionada.</div>
+  <div class="hint kmr"></div><div class="hint">Mostra só o trecho entre esses km. Use junto com uma rodovia selecionada.</div>
   <div class="fact"><a data-a="none">Limpar</a></div></div>`;
 box.insertBefore(kmEl,document.getElementById('od'));
 const kA=kmEl.querySelector('#kmA'),kB=kmEl.querySelector('#kmB'),rA=kmEl.querySelector('#kmRa'),rB=kmEl.querySelector('#kmRb');
-function kmUI(){kA.value=KM.a;kB.value=KM.b;rA.value=KM.a;rB.value=KM.b;
-  const on=kmEl.querySelector('.on');on.style.left=(KM.a/KMAX*100)+'%';on.style.right=(100-KM.b/KMAX*100)+'%';
+function kmUI(){[kA,kB,rA,rB].forEach(e=>{e.min=KR.lo;e.max=KR.hi});kA.value=+KM.a.toFixed(1);kB.value=+KM.b.toFixed(1);rA.value=KM.a;rB.value=KM.b;
+  const span=Math.max(KR.hi-KR.lo,1e-6),on=kmEl.querySelector('.on');on.style.left=((KM.a-KR.lo)/span*100)+'%';on.style.right=(100-(KM.b-KR.lo)/span*100)+'%';
+  kmEl.querySelector('.kmr').textContent='Trechos filtrados: km '+fmt1(KR.lo)+' a '+fmt1(KR.hi);
   kmEl.querySelector('.badge').textContent=kmOn()?'1':''}
-let kmT;const kmSet=(a,b,fit)=>{a=Math.max(0,Math.min(+a||0,KMAX));b=b===''||b==null||isNaN(+b)?KMAX:Math.max(0,Math.min(+b,KMAX));if(a>b)[a,b]=[b,a];KM.a=a;KM.b=b;
+let kmT;const kmSet=(a,b,fit)=>{a=a===''||a==null||isNaN(+a)?KR.lo:Math.max(KR.lo,Math.min(+a,KR.hi));b=b===''||b==null||isNaN(+b)?KR.hi:Math.max(KR.lo,Math.min(+b,KR.hi));if(a>b)[a,b]=[b,a];KM.a=a;KM.b=b;
   clearTimeout(kmT);kmT=setTimeout(()=>update(fit),fit?0:60)};
 kA.onchange=()=>kmSet(kA.value,KM.b,true);kB.onchange=()=>kmSet(KM.a,kB.value,true);
 rA.oninput=()=>{if(+rA.value>KM.b)rA.value=KM.b;KM.a=+rA.value;kmUI();kmSet(KM.a,KM.b,false)};
 rB.oninput=()=>{if(+rB.value<KM.a)rB.value=KM.a;KM.b=+rB.value;kmUI();kmSet(KM.a,KM.b,false)};
 rA.onchange=rB.onchange=()=>kmSet(KM.a,KM.b,true);
-kmEl.querySelector('[data-a=none]').onclick=()=>kmSet(0,KMAX,true);
+kmEl.querySelector('[data-a=none]').onclick=()=>kmSet(KR.lo,KR.hi,true);
 // rodovias que só aparecem como trecho coincidente (a concessão é de outra BR) não entram na lista
 function rowVis(d){const q=norm(d.q.value);let ok=null;
   if(d.key==='r'){ok=new Set();SEG.forEach(s=>{if(!sel.k.size||sel.k.has(s.k))ok.add(s.r)});}
@@ -1243,7 +1244,12 @@ function showStats(){
   document.getElementById('sConL').textContent=R?'concessionárias na rota':'concessionárias';
 }
 window.onRouteChange=()=>{update(false);showStats();updatePed();updateRec();if(window.updateLegend)updateLegend()};
-function update(fit){
+// a faixa do filtro de km acompanha os outros filtros (concessionária, rodovia, UF, coincidente)
+function kmBounds(){let lo=Infinity,hi=-Infinity;SEG.forEach(s=>{if(s.ki!=null&&s.kf!=null&&passBase(s,'km')){lo=Math.min(lo,s.ki);hi=Math.max(hi,s.kf)}});
+  if(lo===Infinity){lo=0;hi=KMAX}lo=Math.floor(lo*10)/10;hi=Math.ceil(hi*10)/10;
+  const was=kmOn();KR.lo=lo;KR.hi=hi;
+  if(!was){KM.a=lo;KM.b=hi}else{KM.a=Math.max(lo,Math.min(KM.a,hi));KM.b=Math.max(lo,Math.min(KM.b,hi));if(KM.b-KM.a<.05){KM.a=lo;KM.b=hi}}}
+function update(fit){kmBounds();
   segLayer.clearLayers();let km=0,n=0;const cs=new Set();
   // trecho coincidente fica em cima do eixo principal: só entra na soma quando o filtro mostra apenas os coincidentes
   const soCoinc=sel.k.size>0&&!sel.k.has('-'),kmOf=s=>(s.k==='-'||soCoinc?s.km:0)*kmFrac(s);
