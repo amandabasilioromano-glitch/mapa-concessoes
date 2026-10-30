@@ -870,7 +870,7 @@ body.pfs #side{display:none}
   #side #filters{overflow:visible!important;flex:none!important;height:auto!important;max-height:none!important}
   #side .mclose{flex:none;height:40px;align-items:flex-start;box-shadow:0 1px 0 #e2e5eb}
   .mlogo{left:10px!important;top:96px!important;width:96px!important}
-  .mapbar{gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 70px)}
+  .mapbar{gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(var(--vw,100vw) - 70px)}
   .bm{padding:0 2px 0 6px}.bm .lb{display:none}.bm button{padding:7px 7px 5px;font-size:12px}
   .fs{padding:0 9px}.fs span{display:none}
   #map.isfs .exp{display:none}
@@ -878,6 +878,10 @@ body.pfs #side{display:none}
   .mcred{max-width:calc(100% - 20px);font-size:9.5px;bottom:2px}
   .legend{max-height:45%!important}
 }
+@media (max-width:380px){.bm button{padding:6px 5px 4px;font-size:11px}.mapbar{gap:4px;max-width:calc(var(--vw,100vw) - 56px)}}
+.bm button{white-space:nowrap}
+.rotmsg{position:fixed;inset:0;z-index:5000;background:rgba(15,30,60,.82);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;text-align:center}.rotmsg[hidden]{display:none}.rotmsg>div{max-width:80%}.rotmsg b{display:block;font-size:40px;margin-bottom:6px}.rotmsg button{display:block;margin:14px auto 0;background:none;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:16px;padding:6px 14px;font:inherit;font-size:13px}
+body.short #side{height:88%!important}
 </style>
 </head>
 <body>
@@ -938,8 +942,31 @@ body.pfs #side{display:none}
 // (a barra lateral usa transform e não zoom: com zoom, as listas suspensas abrem fora do lugar)
 // dentro de outra página (ex.: Power BI), o relatório amplia a página para caber na tela: a barra lateral e os botões
 // são reduzidos na proporção do visual em relação à tela (largura e altura), para ficarem do tamanho de tela cheia. ?ui=0.8 força uma escala; ?ui=1 desliga.
+// celular abrindo o painel do Power BI: o relatório vem inteiro reduzido na tela do telefone. O mapa detecta o telefone,
+// amplia toda a interface na mesma proporção (para ficar do tamanho normal) e usa o layout de celular quando o espaço é estreito.
+window.UIK=1;window.isMob=()=>innerWidth<=760;
+(function(){let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
+  const sw=Math.min(screen.width||9999,screen.height||9999),coarse=matchMedia('(pointer:coarse)').matches;
+  if(!emb||!coarse||sw>520||innerWidth<=760)return;
+  const app=document.getElementById('app');let mobSt=null,rot=null;
+  const mobCss=()=>{let t='';for(const sh of document.styleSheets){let rs;try{rs=sh.cssRules}catch(e){continue}
+      for(const r of rs)if(r.media&&/max-width:\s*(760|380)px/.test(r.media.mediaText)){const w=+r.media.mediaText.match(/(\d+)px/)[1];t+=`@media (min-width:0px){/*${w}*/${[...r.cssRules].map(x=>x.cssText).join('')}}`}}return t};
+  const apply=()=>{const a=screen.width,b=screen.height,o=screen.orientation&&screen.orientation.type,land=o?/landscape/.test(o):Math.abs(window.orientation||0)===90,W=land?Math.max(a,b):Math.min(a,b),H=land?Math.min(a,b):Math.max(a,b);
+    const k=Math.max(1,innerWidth/W,innerHeight/(H*.8)),w=innerWidth/k,h=innerHeight/k;UIK=k;
+    document.documentElement.style.setProperty('--vw',w+'px');document.documentElement.style.overflow='hidden';
+    app.style.cssText=`width:${w}px;height:${h}px;transform:scale(${k});transform-origin:0 0`;
+    if(!mobSt){mobSt=document.createElement('style');document.head.appendChild(mobSt)}
+    if(!mobSt.dataset.full)mobSt.dataset.full=mobCss();
+    const parts=mobSt.dataset.full.split('@media (min-width:0px)').filter(Boolean);
+    mobSt.textContent=parts.filter(x=>{const n=+x.match(/\/\*(\d+)\*\//)[1];return w<=n}).map(x=>'@media (min-width:0px)'+x).join('');
+    window.isMob=()=>w<=760;document.body.classList.toggle('phone',true);document.body.classList.toggle('short',h<420);
+    if(!rot){rot=document.createElement('div');rot.className='rotmsg';rot.innerHTML='<div><b>⟳</b>Gire o celular para a horizontal para usar o mapa.<button type="button">Continuar assim</button></div>';rot.querySelector('button').onclick=()=>{rot.dataset.ok=1;rot.hidden=true};app.appendChild(rot)}
+    rot.hidden=!(h<300&&!rot.dataset.ok);
+    setTimeout(()=>{try{map.invalidateSize()}catch(e){}},50)};
+  apply();window.addEventListener('resize',()=>setTimeout(apply,200));window.addEventListener('orientationchange',()=>setTimeout(apply,300));
+})();
 (function(){let s=null;const q=new URLSearchParams(location.search).get('ui');
-  if(innerWidth<=760)s=null;else if(q&&!isNaN(+q))s=Math.max(.5,Math.min(1.2,+q));else{let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
+  if(isMob()||UIK!==1)s=null;else if(q&&!isNaN(+q))s=Math.max(.5,Math.min(1.2,+q));else{let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
     if(emb){const W=(screen&&screen.availWidth)||1700,H=(screen&&screen.availHeight)||950;s=Math.max(.6,Math.min(1,Math.max(innerWidth/W,innerHeight/H)))}}
   if(s&&s!==1){const st=document.createElement('style');st.textContent=`#side{transform:scale(${s});transform-origin:0 0;height:calc(100vh / ${s});align-self:flex-start;margin-right:calc(360px * (${s} - 1))}.leaflet-control-container .leaflet-top,.leaflet-control-container .leaflet-bottom{zoom:${s}}`;document.head.appendChild(st)}})();
 </script>
@@ -1068,7 +1095,7 @@ new MapBar({position:'topright'}).addTo(map);
   const cr=document.createElement('div');cr.className='mcred';cr.textContent='Fonte: Dados Abertos da ANTT e SNV/DNIT · Produzido pela Superintendência de Infraestrutura Rodoviária – SUROD/ANTT';
   m.appendChild(lg);m.appendChild(cr);[lg,cr].forEach(e=>{L.DomEvent.disableClickPropagation(e);L.DomEvent.disableScrollPropagation(e)});
   let st=null;lg.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();lg.setPointerCapture(e.pointerId);st={x:e.clientX,y:e.clientY,l:lg.offsetLeft,t:lg.offsetTop}});
-  lg.addEventListener('pointermove',e=>{if(!st)return;const x=Math.max(0,Math.min(m.clientWidth-lg.offsetWidth,st.l+e.clientX-st.x)),y=Math.max(0,Math.min(m.clientHeight-lg.offsetHeight,st.t+e.clientY-st.y));lg.style.left=x+'px';lg.style.top=y+'px'});
+  lg.addEventListener('pointermove',e=>{if(!st)return;const x=Math.max(0,Math.min(m.clientWidth-lg.offsetWidth,st.l+(e.clientX-st.x)/UIK)),y=Math.max(0,Math.min(m.clientHeight-lg.offsetHeight,st.t+(e.clientY-st.y)/UIK));lg.style.left=x+'px';lg.style.top=y+'px'});
   const end=()=>{st=null};lg.addEventListener('pointerup',end);lg.addEventListener('pointercancel',end);})();
 // legenda das concessionárias: aparece só com o mapa em tela cheia, segue os filtros; dá para arrastar e redimensionar
 const legEl=document.createElement('div');legEl.className='legend';legEl.style.display='none';
@@ -1079,7 +1106,7 @@ let legPos=null;
 (function(){const h=legEl.querySelector('.lg-t');let sx,sy,ox,oy,drag=false;
   h.addEventListener('pointerdown',e=>{drag=true;sx=e.clientX;sy=e.clientY;ox=legEl.offsetLeft;oy=legEl.offsetTop;h.setPointerCapture(e.pointerId);e.preventDefault()});
   h.addEventListener('pointermove',e=>{if(!drag)return;const m=document.getElementById('map');
-    const x=Math.max(0,Math.min(m.clientWidth-60,ox+e.clientX-sx)),y=Math.max(0,Math.min(m.clientHeight-40,oy+e.clientY-sy));
+    const x=Math.max(0,Math.min(m.clientWidth-60,ox+(e.clientX-sx)/UIK)),y=Math.max(0,Math.min(m.clientHeight-40,oy+(e.clientY-sy)/UIK));
     legEl.style.left=x+'px';legEl.style.top=y+'px';legPos={x,y}});
   h.addEventListener('pointerup',()=>drag=false);
 })();
@@ -1116,7 +1143,7 @@ window.updateLegend=function(){
   legEl.querySelector('.lg-b').innerHTML=sec('Concessionárias',cs.map(c=>`<li><span class="sw" style="background:${colorOf[c]}"></span>${c}</li>`).join(''))+sec('Pedágio',ped)+sec('Recursos operacionais',rec);
   const first=legEl.style.display==='none';legEl.style.display='';
   fitLegend();
-  if(first&&!legPos){if(!legEl.style.width){const m=document.getElementById('map');legEl.style.width=Math.min(400,m.clientWidth-20)+'px';legEl.style.height=Math.min(390,Math.round(m.clientHeight*(innerWidth<=760?.42:.8)))+'px'}fitLegend();requestAnimationFrame(()=>{const m=document.getElementById('map');legEl.style.left='20px';legEl.style.top=Math.max(70,m.clientHeight-legEl.offsetHeight-90)+'px'})}
+  if(first&&!legPos){if(!legEl.style.width){const m=document.getElementById('map');legEl.style.width=Math.min(400,m.clientWidth-20)+'px';legEl.style.height=Math.min(390,Math.round(m.clientHeight*(isMob()?.42:.8)))+'px'}fitLegend();requestAnimationFrame(()=>{const m=document.getElementById('map');legEl.style.left='20px';legEl.style.top=Math.max(70,m.clientHeight-legEl.offsetHeight-90)+'px'})}
 };
 
 function onExp(){const on=!!document.fullscreenElement||!!window.PFS;document.getElementById('map').classList.toggle('isfs',on);if(window.updateLegend)updateLegend();const f=document.querySelector('.fs');if(f){f.querySelector('span').textContent=on?(window.PFS?'Recolher mapa':'Sair da tela cheia'):'Expandir mapa';f.querySelector('path').setAttribute('d',on?'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7':'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7')}setTimeout(()=>map.invalidateSize(),150)}
@@ -1368,7 +1395,7 @@ function exportMap(fmt,btn){
         if(hit(b))continue;boxes.push(b);dot(p,2*F,mc);halo(m.n,p[0]+6*F,p[1],`${11*F}px "Segoe UI",Roboto,Arial,sans-serif`,3*F,mc,hc);if(++n>3000)break}
       x.textBaseline='alphabetic'}
     // logo, legenda e créditos, nas mesmas posições da tela
-    const mr=mEl.getBoundingClientRect(),rel=el=>{const b=el.getBoundingClientRect();return [(b.left-mr.left)*S,(b.top-mr.top)*S,b.width*S,b.height*S]};
+    const mr=mEl.getBoundingClientRect(),rel=el=>{const b=el.getBoundingClientRect();return [(b.left-mr.left)/UIK*S,(b.top-mr.top)/UIK*S,b.width/UIK*S,b.height/UIK*S]};
     const lg=mEl.querySelector('.mlogo');if(lg&&lg.offsetWidth){const [a,b,w,h]=rel(lg);x.save();x.shadowColor='#fff';x.shadowBlur=3*S;x.drawImage(lg,a,b,w,h);x.restore()}
     if(legEl.style.display!=='none'){const [a,b,w,h]=rel(legEl);x.fillStyle='rgba(255,255,255,.96)';x.shadowColor='rgba(0,0,0,.25)';x.shadowBlur=6*S;
       x.beginPath();x.roundRect?x.roundRect(a,b,w,h,8*S):x.rect(a,b,w,h);x.fill();x.shadowBlur=0;
@@ -1733,7 +1760,7 @@ function searchAll(q){
   let items=[],act=-1;const lyr=L.layerGroup().addTo(map);
   const render=()=>{if(!items.length){ul.hidden=true;return}
     ul.innerHTML=items.map((p,i)=>`<li data-i="${i}" class="${i===act?'on':''}">${p.n} <small>${p.t==='e'?'':p.uf}</small><span class="tp">${p.t==='e'?'estado':p.cap?'capital':'município'}</span></li>`).join('');ul.hidden=false};
-  const go=p=>{lyr.clearLayers();inp.value=p.t==='e'?p.n:lab(p);el.dataset.f='1';ul.hidden=true;if(innerWidth<=760)document.getElementById('side').classList.remove('on');
+  const go=p=>{lyr.clearLayers();inp.value=p.t==='e'?p.n:lab(p);el.dataset.f='1';ul.hidden=true;if(isMob())document.getElementById('side').classList.remove('on');
     if(p.t==='e'){const u=UFS.find(z=>z[0]===p.uf);if(u){const g=L.polygon(u[1],{pane:'mask',color:'#071d41',weight:2.5,fill:false,interactive:false}).addTo(lyr);map.fitBounds(g.getBounds(),{padding:[30,30]})}}
     else{L.marker([p.lat,p.lon],{pane:'rt',interactive:false,icon:L.divIcon({className:'',html:'<div class="buscapin"></div>'})}).bindTooltip(lab(p),{permanent:true,direction:'right',offset:[8,0]}).addTo(lyr);map.setView([p.lat,p.lon],11)}};
   inp.addEventListener('input',()=>{el.dataset.f=inp.value?'1':'0';items=searchAll(inp.value);act=items.length?0:-1;render()});
