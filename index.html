@@ -880,7 +880,7 @@ body.pfs #side{display:none}
 }
 @media (max-width:380px){.bm button{padding:6px 5px 4px;font-size:11px}.mapbar{gap:4px;max-width:calc(var(--vw,100vw) - 56px)}}
 .bm button{white-space:nowrap}
-.rotmsg{position:fixed;inset:0;z-index:5000;background:rgba(15,30,60,.82);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;text-align:center}.rotmsg[hidden]{display:none}.rotmsg>div{max-width:80%}.rotmsg b{display:block;font-size:40px;margin-bottom:6px}.rotmsg button{display:block;margin:14px auto 0;background:none;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:16px;padding:6px 14px;font:inherit;font-size:13px}
+.rotmsg{position:fixed;inset:0;z-index:5000;background:rgba(15,30,60,.82);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;text-align:center}.rotmsg[hidden]{display:none}.rotmsg>div{max-width:80%}.rotmsg b{display:block;font-size:40px;margin-bottom:6px}.rotmsg .rm-go{background:#fff!important;color:#1351b4!important;font-weight:600}.rotmsg button{display:block;margin:14px auto 0;background:none;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:16px;padding:6px 14px;font:inherit;font-size:13px}
 body.short #side{height:88%!important}
 </style>
 </head>
@@ -948,7 +948,11 @@ window.UIK=1;window.isMob=()=>innerWidth<=760;
 (function(){let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
   const sw=Math.min(screen.width||9999,screen.height||9999),coarse=matchMedia('(pointer:coarse)').matches;
   if(!emb||!coarse||sw>520||innerWidth<=760)return;
-  const app=document.getElementById('app');let mobSt=null,rot=null;
+  const app=document.getElementById('app');let mobSt=null,rot=null,tried=0;
+  const PBI='https://app.powerbi.com/view?r=eyJrIjoiMzc2OGVkZjYtY2JhNC00MzhhLTg4OTItY2JkM2E2NDljN2ZjIiwidCI6Ijg3YmJlOWRlLWE4OTItNGNkZS1hNDY2LTg4Zjk4MmZiYzQ5MCJ9';
+  const cq=new URLSearchParams(location.search).get('cel'),CEL=cq?(/^https:\/\/app\.powerbi\.com\//.test(cq)?cq:PBI+'&pageName='+encodeURIComponent(cq)):null;
+  const goCel=click=>{try{window.top.location.href=CEL;return true}catch(e){}
+    if(click){try{const w=window.open(CEL,'_top');if(w)return true}catch(e){}try{const w=window.open(CEL,'_blank');if(w)return true}catch(e){}}return false};
   const mobCss=()=>{let t='';for(const sh of document.styleSheets){let rs;try{rs=sh.cssRules}catch(e){continue}
       for(const r of rs)if(r.media&&/max-width:\s*(760|380)px/.test(r.media.mediaText)){const w=+r.media.mediaText.match(/(\d+)px/)[1];t+=`@media (min-width:0px){/*${w}*/${[...r.cssRules].map(x=>x.cssText).join('')}}`}}return t};
   const apply=()=>{const a=screen.width,b=screen.height,o=screen.orientation&&screen.orientation.type,land=o?/landscape/.test(o):Math.abs(window.orientation||0)===90,W=land?Math.max(a,b):Math.min(a,b),H=land?Math.min(a,b):Math.max(a,b);
@@ -960,8 +964,14 @@ window.UIK=1;window.isMob=()=>innerWidth<=760;
     const parts=mobSt.dataset.full.split('@media (min-width:0px)').filter(Boolean);
     mobSt.textContent=parts.filter(x=>{const n=+x.match(/\/\*(\d+)\*\//)[1];return w<=n}).map(x=>'@media (min-width:0px)'+x).join('');
     window.isMob=()=>w<=760;document.body.classList.toggle('phone',true);document.body.classList.toggle('short',h<420);
-    if(!rot){rot=document.createElement('div');rot.className='rotmsg';rot.innerHTML='<div><b>⟳</b>Gire o celular para a horizontal para usar o mapa.<button type="button">Continuar assim</button></div>';rot.querySelector('button').onclick=()=>{rot.dataset.ok=1;rot.hidden=true};app.appendChild(rot)}
+    // ?cel=<nome da página do Power BI, ex.: ReportSection123abc> (ou o link inteiro): com o celular em pé, tenta levar para a página de celular
+    if(!rot){rot=document.createElement('div');rot.className='rotmsg';
+      rot.innerHTML='<div><b>⟳</b><span class="rm-t">Gire o celular para a horizontal para usar o mapa.</span>'+(CEL?'<button type="button" class="rm-go">Abrir versão para celular</button>':'')+'<button type="button" class="rm-ok">Continuar assim</button></div>';
+      rot.querySelector('.rm-ok').onclick=()=>{rot.dataset.ok=1;rot.hidden=true};
+      const go=rot.querySelector('.rm-go');if(go)go.onclick=()=>{if(!goCel(true)){go.remove();rot.querySelector('.rm-t').textContent='O Power BI não deixou abrir a versão para celular. Gire o celular para a horizontal para usar o mapa.'}};
+      app.appendChild(rot)}
     rot.hidden=!(h<300&&!rot.dataset.ok);
+    if(h<300&&CEL&&!tried){tried=1;goCel(false)}
     setTimeout(()=>{try{map.invalidateSize()}catch(e){}},50)};
   apply();window.addEventListener('resize',()=>setTimeout(apply,200));window.addEventListener('orientationchange',()=>setTimeout(apply,300));
 })();
