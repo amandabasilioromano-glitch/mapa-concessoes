@@ -830,6 +830,12 @@ body.pfs #side{display:none}
 .fsel-l.up{top:auto;bottom:100%;margin:0 0 2px}
 .fsel-l li{padding:6px 10px;cursor:pointer;white-space:nowrap}.fsel-l li:hover{background:#edf3fd}.fsel-l li.on{background:#1351b4;color:#fff}
 .fsel-b{font-size:13px}
+.fsel-l.cal{right:auto;width:236px;padding:8px;max-height:none;overflow:visible}
+.calh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.calh b{font-size:13px}
+.calh button,.calf button{border:0;background:none;cursor:pointer;color:#1351b4;font:600 15px inherit;font-family:inherit;padding:2px 8px;border-radius:4px}.calh button:hover,.calf button:hover{background:#edf3fd}
+.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}.calg i{font-style:normal;font-size:11px;color:var(--muted);padding:2px 0}
+.calg span{padding:5px 0;border-radius:5px;cursor:pointer;font-size:12.5px}.calg span:hover{background:#edf3fd}.calg span.fo{color:#a3aab8}.calg span.hj{font-weight:700}.calg span.on{background:#1351b4;color:#fff}
+.calf{display:flex;justify-content:flex-end;margin-top:4px}.calf button{font-size:12.5px}
 .odwhen label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
 .odwhen input,.odwhen select{width:100%;padding:7px 8px;border:1px solid #c7d7f2;border-radius:6px;font-size:13px;background:#fff;font-family:inherit}
 .toll{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
@@ -1490,6 +1496,28 @@ function fakeSelect(sel){
   bt.onkeydown=e=>{if(e.key==='Escape')close();if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const n=sel.selectedIndex+(e.key==='ArrowDown'?1:-1);if(n>=0&&n<sel.options.length){sel.selectedIndex=n;sel.dispatchEvent(new Event('change'))}}};
 }
 fakeSelect(document.getElementById('odHora'));fakeSelect(document.getElementById('odVeic'));
+// calendário próprio para a data (o nativo também abre fora do lugar no Power BI)
+function fakeDate(inp){
+  const w=document.createElement('div');w.className='fsel fdate';inp.parentNode.insertBefore(w,inp);w.appendChild(inp);inp.type='hidden';
+  const bt=document.createElement('button');bt.type='button';bt.className='fsel-b';const pop=document.createElement('div');pop.className='fsel-l cal';pop.hidden=true;w.appendChild(bt);w.appendChild(pop);
+  const MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const cur=()=>{const p=(inp.value||iso(new Date())).split('-').map(Number);return new Date(p[0],p[1]-1,p[2])};
+  const lab=()=>{const d=cur();bt.textContent=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};lab();
+  let vm=null;
+  const draw=()=>{const y=vm.getFullYear(),m=vm.getMonth(),f=new Date(y,m,1),st=new Date(y,m,1-f.getDay()),sel=inp.value,hj=iso(new Date());
+    let h=`<div class="calh"><button type="button" data-n="-1" aria-label="Mês anterior">‹</button><b>${MES[m]} de ${y}</b><button type="button" data-n="1" aria-label="Próximo mês">›</button></div><div class="calg">`+['D','S','T','Q','Q','S','S'].map(x=>`<i>${x}</i>`).join('');
+    for(let k=0;k<42;k++){const d=new Date(st.getFullYear(),st.getMonth(),st.getDate()+k),v=iso(d);h+=`<span data-v="${v}" class="${d.getMonth()!==m?'fo ':''}${v===sel?'on ':''}${v===hj?'hj':''}">${d.getDate()}</span>`}
+    pop.innerHTML=h+'</div><div class="calf"><button type="button" data-hoje="1">Hoje</button></div>'};
+  const close=()=>{pop.hidden=true;document.removeEventListener('mousedown',out,true)},out=e=>{if(!w.contains(e.target))close()};
+  const set=v=>{inp.value=v;lab();inp.dispatchEvent(new Event('change'));close()};
+  bt.onclick=()=>{if(!pop.hidden){close();return}const d=cur();vm=new Date(d.getFullYear(),d.getMonth(),1);draw();pop.hidden=false;pop.classList.remove('up');
+    const sc=w.closest('#filters')||document.body,sr=sc.getBoundingClientRect(),br=bt.getBoundingClientRect();
+    if(br.bottom+pop.offsetHeight>sr.bottom&&br.top-pop.offsetHeight>sr.top)pop.classList.add('up');document.addEventListener('mousedown',out,true)};
+  pop.onclick=e=>{const t=e.target;if(t.dataset.n){vm=new Date(vm.getFullYear(),vm.getMonth()+(+t.dataset.n),1);draw()}else if(t.dataset.v)set(t.dataset.v);else if(t.dataset.hoje)set(iso(new Date()))};
+  bt.onkeydown=e=>{if(e.key==='Escape')close()};
+}
+fakeDate(document.getElementById('odData'));
 const ONEWAY={'Ecovias Ponte|P01':+1,'Autopista Fluminense|P04':-1}; // +1: cobra indo para leste; -1: indo para oeste
 const TIPOS={util:'dia útil',sab:'sábado',dom:'domingo',idaF:'ida de feriado',emenda:'emenda de feriado',voltaF:'volta de feriado'};
 function tipoDia(ds){if(FFDATA.cal[ds])return [FFDATA.cal[ds],true];const w=new Date(ds+'T12:00:00').getDay();return [w===6?'sab':w===0?'dom':'util',false]}
