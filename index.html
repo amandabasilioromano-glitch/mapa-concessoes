@@ -709,6 +709,10 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .opt.dim{opacity:.38}
 .opt .sw{width:14px;height:4px;border-radius:2px;flex:none}
 .opt .n{margin-left:auto;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+#side .cred{font-size:10.5px;line-height:1.4;color:var(--muted);padding:8px 18px 10px}
+.mlogo{display:none;position:absolute;z-index:1000;left:60px;top:12px;width:170px;height:auto;cursor:move;touch-action:none;user-select:none;filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff)}
+.mcred{display:none;position:absolute;z-index:1000;left:50%;bottom:6px;transform:translateX(-50%);max-width:calc(100% - 260px);text-align:center;background:rgba(255,255,255,.85);border-radius:4px;padding:3px 9px;font:11px "Segoe UI",Roboto,Arial,sans-serif;color:#4a5466}
+#map.isfs .mlogo,#map.isfs .mcred{display:block}
 #clear{margin:12px 18px 0;padding:8px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;font-size:13px;width:calc(100% - 36px)}
 #clear:hover{background:var(--bg)}
 #foot{font-size:11px;color:var(--muted);padding:10px 18px;border-top:1px solid var(--line);line-height:1.45}
@@ -869,6 +873,7 @@ body.pfs #side{display:none}
       </details>
     </div>
     <button id="clear">Limpar filtros</button>
+    <div class="cred">Fonte: Dados Abertos da ANTT e SNV/DNIT.<br>Produzido pela Superintendência de Infraestrutura Rodoviária – SUROD/ANTT.</div>
   </aside>
   <button id="toggle">☰ Filtros</button>
   <div id="map"></div>
@@ -914,7 +919,7 @@ const map=L.map('map',{preferCanvas:true,zoomControl:true,zoomSnap:0.25,zoomDelt
 const BRB=L.latLngBounds([-33.8,-74],[5.3,-34.8]),fitBR=()=>map.fitBounds(BRB,{padding:[10,10]});
 const canvas=L.canvas({padding:.5,tolerance:6});
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
-const attr='Mapa: Esri, HERE, Garmin, © OpenStreetMap | Dados: ANTT';
+const attr='Mapa: Esri, HERE, Garmin, © OpenStreetMap | Dados: ANTT e SNV/DNIT';
 const T=(u,m)=>L.tileLayer(ESRI+u+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:m,attribution:attr});
 const bases={
   // sem as camadas de rótulos da Esri (em inglês); os nomes em português são desenhados pelo próprio mapa
@@ -1005,6 +1010,14 @@ const MapBar=L.Control.extend({onAdd(){
   };
   return d}});
 new MapBar({position:'topright'}).addTo(map);
+// logo (dá para arrastar) e créditos no rodapé: só aparecem com o mapa expandido
+(function(){const m=document.getElementById('map');
+  const lg=document.createElement('img');lg.className='mlogo';lg.src=document.querySelector('#side .logo').src;lg.alt='ANTT';lg.draggable=false;lg.title='Arraste para mover';
+  const cr=document.createElement('div');cr.className='mcred';cr.textContent='Fonte: Dados Abertos da ANTT e SNV/DNIT · Produzido pela Superintendência de Infraestrutura Rodoviária – SUROD/ANTT';
+  m.appendChild(lg);m.appendChild(cr);[lg,cr].forEach(e=>{L.DomEvent.disableClickPropagation(e);L.DomEvent.disableScrollPropagation(e)});
+  let st=null;lg.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();lg.setPointerCapture(e.pointerId);st={x:e.clientX,y:e.clientY,l:lg.offsetLeft,t:lg.offsetTop}});
+  lg.addEventListener('pointermove',e=>{if(!st)return;const x=Math.max(0,Math.min(m.clientWidth-lg.offsetWidth,st.l+e.clientX-st.x)),y=Math.max(0,Math.min(m.clientHeight-lg.offsetHeight,st.t+e.clientY-st.y));lg.style.left=x+'px';lg.style.top=y+'px'});
+  const end=()=>{st=null};lg.addEventListener('pointerup',end);lg.addEventListener('pointercancel',end);})();
 // legenda das concessionárias: aparece só com o mapa em tela cheia, segue os filtros; dá para arrastar e redimensionar
 const legEl=document.createElement('div');legEl.className='legend';legEl.style.display='none';
 legEl.innerHTML='<div class="lg-t" title="Arraste para mover"><span>Concessionárias</span><span class="lg-grip">⠿</span></div><ul></ul>';
@@ -1095,9 +1108,9 @@ map.on('zoomend',()=>{const r=map.getZoom()>=9?7:map.getZoom()>=7?6:5;pedPts.for
 function updatePed(){
   const showPr=document.getElementById('pedPr').checked,showFf=document.getElementById('pedFf').checked;
   pedLayer.clearLayers();let nPr=0,nFf=0;
-  pedPts.forEach(o=>{if(sel.c.size&&!sel.c.has(o.p[0]))return;if(window.routeNear&&!routeNear(o.p[3],o.p[4]))return;
-    if(o.ff)nFf++;else nPr++;
-    if((o.ff&&showFf)||(!o.ff&&showPr))pedLayer.addLayer(o.m)});
+  pedPts.forEach(o=>{if(sel.c.size&&!sel.c.has(o.p[0]))return;const on=!window.routeNear||routeNear(o.p[3],o.p[4]);
+    if(on){if(o.ff)nFf++;else nPr++}
+    if((o.ff&&showFf)||(!o.ff&&showPr)){o.m.setStyle(on?{opacity:1,fillOpacity:1}:{opacity:FADE,fillOpacity:FADE+.05});pedLayer.addLayer(o.m);if(on)o.m.bringToFront()}});
   document.getElementById('nPr').textContent=nPr;document.getElementById('nFf').textContent=nFf;
 }
 document.getElementById('pedPr').onchange=document.getElementById('pedFf').onchange=()=>{updatePed();if(window.updateLegend)updateLegend()};
@@ -1126,7 +1139,7 @@ map.on('zoomend',()=>{const z=map.getZoom(),rr=z>=10?6:z>=8?5:4;recPts.forEach(o
 function updateRec(){
   const on=new Set([...document.querySelectorAll('[data-rec]')].filter(c=>c.checked).map(c=>c.dataset.rec));
   recLayer.clearLayers();const n={};
-  recPts.forEach(o=>{if(sel.c.size&&!sel.c.has(o.r[1]))return;if(window.routeNear&&!routeNear(o.r[9],o.r[10]))return;n[o.r[0]]=(n[o.r[0]]||0)+1;if(on.has(o.r[0]))recLayer.addLayer(o.m)});
+  recPts.forEach(o=>{if(sel.c.size&&!sel.c.has(o.r[1]))return;const ok=!window.routeNear||routeNear(o.r[9],o.r[10]);if(ok)n[o.r[0]]=(n[o.r[0]]||0)+1;if(on.has(o.r[0])){o.m.setStyle(ok?{opacity:1,fillOpacity:1}:{opacity:FADE,fillOpacity:FADE+.05});recLayer.addLayer(o.m);if(ok)o.m.bringToFront()}});
   RECT.forEach(x=>document.getElementById('nRec_'+x.k).textContent=n[x.k]||0);
 }
 document.querySelectorAll('[data-rec]').forEach(c=>c.onchange=()=>{updateRec();if(window.updateLegend)updateLegend()});
@@ -1143,7 +1156,10 @@ const KMAX=Math.ceil(Math.max(...SEG.map(s=>s.kf||0)));const KM={a:0,b:KMAX};
 const kmOn=()=>KM.a>0||KM.b<KMAX;
 function kmFrac(s){if(!kmOn())return 1;if(s.ki==null||s.kf==null)return 0;const L=s.kf-s.ki;
   if(L<=0)return s.ki>=KM.a&&s.ki<=KM.b?1:0;return Math.max(0,Math.min(s.kf,KM.b)-Math.max(s.ki,KM.a))/L}
-const pass=(s,skip)=>DIMS.every(d=>d.key===skip||!sel[d.key].size||sel[d.key].has(s[d.key]))&&(skip==='km'||kmFrac(s)>0);
+const passBase=(s,skip)=>DIMS.every(d=>d.key===skip||!sel[d.key].size||sel[d.key].has(s[d.key]))&&(skip==='km'||kmFrac(s)>0);
+const pass=(s,skip)=>window.routeSegs?routeSegs.has(s.i)&&DIMS.every(d=>d.key===skip||d.key==='k'||!sel[d.key].size||sel[d.key].has(s[d.key]))&&(skip==='km'||kmFrac(s)>0):passBase(s,skip);
+// com uma rota escolhida, o que não está nela continua no mapa, bem apagado
+const FADE=.18;
 
 const box=document.getElementById('filters');
 DIMS.forEach(d=>{
@@ -1188,7 +1204,8 @@ kmEl.querySelector('[data-a=none]').onclick=()=>kmSet(0,KMAX,true);
 // rodovias que só aparecem como trecho coincidente (a concessão é de outra BR) não entram na lista
 function rowVis(d){const q=norm(d.q.value);let ok=null;
   if(d.key==='r'){ok=new Set();SEG.forEach(s=>{if(!sel.k.size||sel.k.has(s.k))ok.add(s.r)});}
-  d.values.forEach(v=>d.rows[v].lab.style.display=norm(v).includes(q)&&(!ok||ok.has(v)||sel.r.has(v))?'':'none')}
+  let onr=null;if(window.routeSegs){onr=new Set();routeSegs.forEach(i=>onr.add(SEG[i][d.key]))}
+  d.values.forEach(v=>d.rows[v].lab.style.display=norm(v).includes(q)&&(!ok||ok.has(v)||sel.r.has(v))&&(!onr||onr.has(v)||sel[d.key].has(v))?'':'none')}
 function norm(s){return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()}
 
 // totais do topo: com uma rota calculada, mostram o que está sob concessão federal na rota escolhida
@@ -1200,12 +1217,13 @@ function showStats(){
   document.getElementById('sKmL').textContent=R?'km sob concessão federal na rota':'km de trecho sob concessão federal';
   document.getElementById('sConL').textContent=R?'concessionárias na rota':'concessionárias';
 }
-window.onRouteChange=()=>{showStats();updatePed();updateRec();if(window.updateLegend)updateLegend()};
+window.onRouteChange=()=>{update(false);showStats();updatePed();updateRec();if(window.updateLegend)updateLegend()};
 function update(fit){
   segLayer.clearLayers();let km=0,n=0;const cs=new Set();
   // trecho coincidente fica em cima do eixo principal: só entra na soma quando o filtro mostra apenas os coincidentes
   const soCoinc=sel.k.size>0&&!sel.k.has('-'),kmOf=s=>(s.k==='-'||soCoinc?s.km:0)*kmFrac(s);
-  SEG.forEach(s=>{if(pass(s)){const f=kmFrac(s);segLayer.addLayer(f>=0.999?lines[s.i]:clipLine(s));km+=kmOf(s);n++;cs.add(s.c)}});
+  SEG.forEach(s=>{const on=pass(s);if(on||(window.routeSegs&&passBase(s))){const f=kmFrac(s),l=f>=0.999?lines[s.i]:clipLine(s);l.setStyle({opacity:on?.9:FADE});segLayer.addLayer(l);if(on){km+=kmOf(s);n++;cs.add(s.c)}}});
+  if(window.routeSegs)segLayer.eachLayer(l=>{if(l.options.opacity>FADE)l.bringToFront()});
   kmUI();
   STAT={km,n:cs.size};showStats();
   DIMS.forEach(d=>{
@@ -1215,7 +1233,7 @@ function update(fit){
   });
   updatePed();updateRec();
   if(window.updateLegend)updateLegend();
-  if(fit&&n)map.fitBounds(segLayer.getBounds(),{padding:[30,30],maxZoom:12});
+  if(fit&&n){const bb=L.latLngBounds([]);segLayer.eachLayer(l=>{if(l.options.opacity>FADE)bb.extend(l.getBounds())});map.fitBounds(bb,{padding:[30,30],maxZoom:12})}
 }
 document.getElementById('clear').onclick=()=>{KM.a=0;KM.b=KMAX;DIMS.forEach(d=>{sel[d.key]=new Set(DEF[d.key]||[]);d.q.value='';d.q.dispatchEvent(new Event('input'))});update(false);fitBR()};
 document.getElementById('toggle').onclick=()=>document.getElementById('side').classList.toggle('on');
@@ -1400,13 +1418,13 @@ function renderRes(){
       ${T.items.length?`<ul>${T.items.map(it=>`<li><span class="pd" style="background:${it.tipo==='pr'?'#0b2e6b':'#e8590c'}"></span><span>${it.num?it.num+' – ':''}${it.nome}<br><small style="color:var(--muted)">${it.c} · ${it.tipo==='pr'?'praça':'free flow'}</small></span><span class="v">${brl(it.v)}</span></li>`).join('')}</ul>`:'<div class="nt">Sem pedágio federal nesta rota.</div>'}
       ${T.notes.length?`<div class="nt">${T.notes.join('<br>')}</div>`:''}<div class="nt">Tarifa cheia, sem desconto de TAG. Fonte: ANTT.</div></div>`:'';
     return `<div class="rcard${i===SEL?' sel':''}" data-i="${i}"><div class="h"><b>Rota ${i+1}</b>${fmt1(r.km)} km<span>~${dur(r.s)}</span></div><div class="via" style="color:#0b2e6b;font-weight:600">Pedágio: ${brl(T.total)}</div>
-      <div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
+      ${r.pela?`<div class="via">passando por ${r.pela}</div>`:''}<div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
    + (ROUTES.length?'<div style="font-size:11px;color:var(--muted);margin-top:8px">Rotas: OSRM / © OpenStreetMap. Distância e tempo estimados.</div>':'');
   box.querySelectorAll('.rcard').forEach(c=>c.onclick=()=>select(+c.dataset.i));
 }
 // pontos (pedágio e recursos) a até 2 km da rota escolhida
 function setRouteFilter(){
-  if(!ROUTES.length){window.routeNear=null;window.routeStat=null;if(window.onRouteChange)onRouteChange();return}
+  if(!ROUTES.length){window.routeNear=null;window.routeStat=null;window.routeSegs=null;if(window.onRouteChange)onRouteChange();return}
   const rt=ROUTES[SEL],C=0.05,G=new Map();
   for(let j=0;j<rt.coords.length-1;j++){const a=rt.coords[j],b=rt.coords[j+1];
     for(let i=Math.floor(Math.min(a[0],b[0])/C);i<=Math.floor(Math.max(a[0],b[0])/C);i++)for(let k=Math.floor(Math.min(a[1],b[1])/C);k<=Math.floor(Math.max(a[1],b[1])/C);k++){const key=i+','+k;let c=G.get(key);if(!c)G.set(key,c=[]);c.push([a,b])}}
@@ -1416,12 +1434,41 @@ function setRouteFilter(){
         let t=L2?-(ax*dx+ay*dy)/L2:0;t=Math.max(0,Math.min(1,t));if(Math.hypot(ax+t*dx,ay+t*dy)<=2)return true}}
     return false};
   window.routeStat={km:rt.an.concKm,n:rt.an.conc.length};
+  // segmentos concedidos usados pela rota: filtros de concessionária, rodovia e UF mostram só o que está nela
+  const rs=new Set();rt.an.runs.forEach(u=>{if(u.c!==null)u.p.forEach(p=>{if(p.si!=null&&SEG[p.si].c===u.c)rs.add(p.si)})});window.routeSegs=rs;
   if(window.onRouteChange)onRouteChange();
 }
 function select(i){SEL=i;draw();renderRes();setRouteFilter();const b=L.latLngBounds(ROUTES[i].coords);map.fitBounds(b,{padding:[40,40]})}
 function clearRoutes(){ROUTES=[];SEL=0;draw();document.getElementById('odRes').innerHTML='';msg('');setRouteFilter()}
 
 /* ---- cálculo ---- */
+// o OSRM devolve poucas alternativas: procura outros caminhos forçando a passagem por cidades entre a origem e o destino
+function overlap(a,b){const C=0.01,g=new Map();b.forEach(p=>{const k=Math.floor(p[0]/C)+'|'+Math.floor(p[1]/C);if(!g.has(k))g.set(k,[]);g.get(k).push(p)});
+  const st=Math.max(1,Math.floor(a.length/150));let n=0,hit=0;
+  for(let i=0;i<a.length;i+=st){n++;const p=a[i],ci=Math.floor(p[0]/C),cj=Math.floor(p[1]/C);let ok=false;
+    for(let x=-1;x<=1&&!ok;x++)for(let y=-1;y<=1&&!ok;y++){const L=g.get((ci+x)+'|'+(cj+y));if(L)ok=L.some(q=>hav(p,q)<0.35)}if(ok)hit++}
+  return hit/n}
+async function moreRoutes(de,para,rs){
+  const A=[de.lat,de.lon],B=[para.lat,para.lon],D=hav(A,B);if(D<15)return rs;
+  const best=Math.min(...rs.map(r=>r.km)),near=(c)=>rs.some(r=>{for(let i=0;i<r.coords.length;i+=3)if(hav(c,r.coords[i])<4)return true;return false});
+  const cand=[];for(let i=0;i<MUN.length&&cand.length<14;i++){const m=MUN[i];if(m===de||m===para)continue;const c=[m.lat,m.lon],da=hav(A,c),db=hav(c,B);
+    if(da+db>1.3*D||da<0.12*D||db<0.12*D||near(c))continue;
+    if(cand.some(o=>hav([o.lat,o.lon],c)<0.15*D))continue;cand.push(m)}
+  const out=rs.slice();
+  for(let i=0;i<cand.length&&out.length<5;i+=2){
+    const got=await Promise.all(cand.slice(i,i+2).map(m=>fetch(`https://router.project-osrm.org/route/v1/driving/${de.lon},${de.lat};${m.lon},${m.lat};${para.lon},${para.lat}?alternatives=false&overview=full&geometries=geojson`).then(r=>r.json()).then(d=>d.code==='Ok'&&d.routes[0]?{m,r:d.routes[0]}:null).catch(()=>null)));
+    got.forEach(g=>{if(!g||out.length>=5)return;const km=g.r.distance/1000;if(km>1.35*best)return;
+      let coords=g.r.geometry.coordinates.map(c=>[c[1],c[0]]),sx=g.r.duration;
+      // tira o "entra e sai" até o centro da cidade usada como passagem
+      const S=[0];for(let j=1;j<coords.length;j++)S.push(S[j-1]+hav(coords[j-1],coords[j]));
+      const mc=[g.m.lat,g.m.lon];let ix=0;coords.forEach((p,j)=>{if(hav(p,mc)<hav(coords[ix],mc))ix=j});
+      const at=d=>{d=Math.max(0,Math.min(S[S.length-1],d));let j=1;while(j<S.length-1&&S[j]<d)j++;return j};
+      let x=0;while(x<15&&hav(coords[at(S[ix]-x-0.1)],coords[at(S[ix]+x+0.1)])<0.12)x+=0.1;
+      if(x>0){const a=at(S[ix]-x),b=at(S[ix]+x);coords=coords.slice(0,a).concat(coords.slice(b));const cut=S[b]-S[a];sx-=sx*cut/km}
+      const kmx=coords.reduce((t,p,j)=>j?t+hav(coords[j-1],p):0,0);if(kmx>1.35*best)return;
+      if(out.some(o=>overlap(coords,o.coords)>0.8))return;
+      out.push({coords,km:kmx,s:sx,pela:g.m.n+' ('+g.m.uf+')'})})}
+  return out.sort((a,b)=>a.s-b.s)}
 async function calc(){
   const de=cDe.value,para=cPara.value;
   if(!de||!para){msg('Escolha a origem e o destino na lista de cidades.',true);return}
@@ -1437,7 +1484,9 @@ async function calc(){
     const res=await fetch(url,{signal:ctl.signal});clearTimeout(to);
     const d=await res.json();
     if(d.code!=='Ok'||!d.routes||!d.routes.length){msg('Não foi encontrada rota entre essas cidades.',true);clearRoutes();return}
-    ROUTES=d.routes.slice(0,4).map(r=>{const coords=r.geometry.coordinates.map(c=>[c[1],c[0]]);const o={de,para,stops,coords,km:r.distance/1000,s:r.duration,an:analyse(coords)};o.toll=tolls(o);return o});
+    let rs=d.routes.map(r=>({coords:r.geometry.coordinates.map(c=>[c[1],c[0]]),km:r.distance/1000,s:r.duration}));
+    if(!stops.length){go.textContent='Buscando mais caminhos…';try{rs=await moreRoutes(de,para,rs)}catch(e){}}
+    ROUTES=rs.slice(0,5).map(r=>{const o={de,para,stops,coords:r.coords,km:r.km,s:r.s,pela:r.pela,an:analyse(r.coords)};o.toll=tolls(o);return o});
     SEL=0;draw();renderRes();select(0);
     msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
   }catch(e){
