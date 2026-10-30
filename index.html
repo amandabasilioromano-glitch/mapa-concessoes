@@ -759,6 +759,9 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .bm button:hover{color:#1351b4}
 .bm button.on{color:#1351b4;border-bottom-color:#1351b4}
 .fs{display:flex;align-items:center;gap:7px;padding:0 12px;font:inherit;font-size:13px;font-weight:600;color:#1351b4;cursor:pointer}
+.exp{display:none;align-items:center;background:#f4f7fb;border:1px solid #c9d4e3;border-radius:6px;box-shadow:0 1px 4px rgba(19,81,180,.15);padding:0 11px;font:inherit;font-size:13px;font-weight:600;color:#1351b4;cursor:pointer;white-space:nowrap}
+.exp:hover{background:#1351b4;border-color:#1351b4;color:#fff}.exp:disabled{opacity:.6;cursor:wait}
+#map.isfs .exp{display:flex}
 .fs:hover{background:#1351b4;border-color:#1351b4;color:#fff}
 #od{margin:12px 12px 6px;border:1px solid #c7d7f2;border-radius:10px;background:#edf3fd}
 #od summary{padding:11px 14px;color:#0b3a82}
@@ -996,9 +999,10 @@ function setBase(k){
 const FSOK=!!(document.fullscreenEnabled||document.webkitFullscreenEnabled);
 const MapBar=L.Control.extend({onAdd(){
   const d=L.DomUtil.create('div','mapbar');
-  d.innerHTML='<div class="bm"><span class="lb">Mapa</span><button data-k="claro">Simplificado</button><button data-k="ruas">Sistema viário</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><span>Expandir mapa</span></button>';
+  d.innerHTML='<div class="bm"><span class="lb">Mapa</span><button data-k="claro">Simplificado</button><button data-k="ruas">Sistema viário</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><span>Expandir mapa</span></button><button class="exp" type="button" data-f="png" title="Baixar o mapa como imagem em alta resolução">⬇ Imagem</button><button class="exp" type="button" data-f="pdf" title="Baixar o mapa em PDF em alta resolução">⬇ PDF</button>';
   L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);
   d.querySelectorAll('.bm button').forEach(b=>b.onclick=()=>setBase(b.dataset.k));
+  d.querySelectorAll('.exp').forEach(b=>b.onclick=()=>exportMap(b.dataset.f,b));
   d.querySelector('.fs').onclick=()=>{
     const el=document.getElementById('map');
     // dentro de iframe sem permissão de tela cheia (ex.: Power BI), expande o mapa dentro da própria página
@@ -1237,6 +1241,110 @@ function update(fit){
 }
 document.getElementById('clear').onclick=()=>{KM.a=0;KM.b=KMAX;DIMS.forEach(d=>{sel[d.key]=new Set(DEF[d.key]||[]);d.q.value='';d.q.dispatchEvent(new Event('input'))});update(false);fitBR()};
 document.getElementById('toggle').onclick=()=>document.getElementById('side').classList.toggle('on');
+/* ===== exportação do mapa (imagem PNG e PDF) em alta resolução =====
+   redesenha a vista atual numa tela S vezes maior: linhas e textos ficam nítidos ao dar zoom na imagem,
+   e aparecem mais nomes de municípios do que na tela */
+function exportMap(fmt,btn){
+  const mEl=document.getElementById('map'),W=mEl.clientWidth,H=mEl.clientHeight;
+  const S=Math.min(4,Math.max(2,6000/W)),F=S*.8,zE=map.getZoom()+Math.log2(S);
+  const nw=map.containerPointToLatLng([0,0]),O=map.project(nw,zE);
+  const P=ll=>{const p=map.project(ll,zE);return [p.x-O.x,p.y-O.y]};
+  const cv=document.createElement('canvas');cv.width=Math.round(W*S);cv.height=Math.round(H*S);const x=cv.getContext('2d');
+  const old=btn.textContent;document.querySelectorAll('.exp').forEach(b=>b.disabled=true);btn.textContent='Gerando…';
+  const sat=baseKey==='satelite',plain=baseKey==='claro'||!bases[baseKey];
+  const rings=a=>!a||!a.length?[]:(Array.isArray(a[0])&&typeof a[0][0]==='number')||a[0].lat!==undefined?[a]:a.flatMap(rings);
+  const path=(a,close)=>{x.beginPath();rings(a).forEach(rg=>{rg.forEach((q,k)=>{const p=P(q);k?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1])});if(close)x.closePath()})};
+  const tiles=()=>new Promise(res=>{
+    if(plain){x.fillStyle='#d9e3ee';x.fillRect(0,0,cv.width,cv.height);return res()}
+    x.fillStyle=sat?'#1c2a3a':'#e8e4dc';x.fillRect(0,0,cv.width,cv.height);
+    const zT=Math.min(19,Math.round(zE)),k=Math.pow(2,zE-zT),oT=map.project(nw,zT);
+    const svc=baseKey==='ruas'?'World_Street_Map':'World_Imagery',n=Math.pow(2,zT);
+    const x0=Math.floor(oT.x/256),y0=Math.floor(oT.y/256),x1=Math.floor((oT.x+cv.width/k)/256),y1=Math.floor((oT.y+cv.height/k)/256);
+    const q=[];for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++)if(ty>=0&&ty<n)q.push([tx,ty]);
+    let i=0,run=0;const next=()=>{if(i>=q.length){if(!run)res();return}const [tx,ty]=q[i++];run++;
+      const im=new Image();im.crossOrigin='anonymous';
+      im.onload=()=>{x.drawImage(im,(tx*256-oT.x)*k,(ty*256-oT.y)*k,256*k+.5,256*k+.5);done()};im.onerror=done;
+      im.src=ESRI+svc+'/MapServer/tile/'+zT+'/'+ty+'/'+(((tx%n)+n)%n);
+      function done(){run--;next()}};
+    for(let j=0;j<10;j++)next();if(!q.length)res()});
+  const halo=(t,px,py,fs,w,col,hc)=>{x.font=fs;x.lineJoin='round';x.lineWidth=w;x.strokeStyle=hc;x.strokeText(t,px,py);x.fillStyle=col;x.fillText(t,px,py)};
+  tiles().then(()=>{
+    // países vizinhos, UFs e contorno do Brasil
+    maskLayer.eachLayer(l=>{const o=l.options;path(l.getLatLngs(),true);x.globalAlpha=o.fillOpacity;x.fillStyle=o.fillColor;x.fill('evenodd')});x.globalAlpha=1;
+    ufLayer.eachLayer(l=>{const o=l.options;path(l.getLatLngs(),true);if(o.fillOpacity){x.globalAlpha=o.fillOpacity;x.fillStyle=o.fillColor;x.fill('evenodd')}
+      x.globalAlpha=o.opacity;x.strokeStyle=o.color;x.lineWidth=o.weight*F;x.stroke()});x.globalAlpha=1;
+    path(BR_OUT,true);x.strokeStyle='#6b7486';x.lineWidth=1.4*F;x.stroke();
+    // trechos concedidos
+    const po=+(map.getPane('overlayPane').style.opacity||1);x.lineCap='round';x.lineJoin='round';
+    const lines=[];segLayer.eachLayer(l=>lines.push(l));lines.sort((a,b)=>a.options.opacity-b.options.opacity);
+    lines.forEach(l=>{const o=l.options;path(l.getLatLngs(),false);x.globalAlpha=o.opacity*po;x.strokeStyle=o.color;x.lineWidth=o.weight*F;
+      x.setLineDash(o.dashArray?String(o.dashArray).split(/[ ,]+/).map(v=>v*F):[]);x.stroke()});x.setLineDash([]);x.globalAlpha=1;
+    // rota
+    const R=window._rt?_rt():null,pins=[];
+    if(R&&R.ROUTES.length){R.rtLayer.eachLayer(l=>{if(l.getLatLngs){const o=l.options;path(l.getLatLngs(),false);x.globalAlpha=o.opacity;x.strokeStyle=o.color;x.lineWidth=o.weight*F;x.stroke()}});x.globalAlpha=1;
+      const r=R.ROUTES[R.SEL];pins.push([r.de,'#1a7f37'],[r.para,'#b42318']);(r.stops||[]).forEach((p,i)=>pins.push([p,'#071d41',String(i+1)]))}
+    // praças e recursos
+    [recLayer,pedLayer].forEach(g=>{const a=[];g.eachLayer(m=>a.push(m));a.sort((p,q)=>p.options.fillOpacity-q.options.fillOpacity);
+      a.forEach(m=>{const o=m.options,p=P(m.getLatLng());x.beginPath();x.arc(p[0],p[1],o.radius*F,0,7);x.globalAlpha=o.fillOpacity;x.fillStyle=o.fillColor;x.fill();
+        x.globalAlpha=o.opacity;x.lineWidth=o.weight*F;x.strokeStyle=o.color;x.stroke()})});x.globalAlpha=1;
+    pins.forEach(([p,c,t])=>{const q=P([p.lat,p.lon]);x.beginPath();x.arc(q[0],q[1],(t?9:7)*F,0,7);x.fillStyle=c;x.fill();x.lineWidth=3*F;x.strokeStyle='#fff';x.stroke();
+      if(t){x.font=`700 ${10*F}px "Segoe UI",Roboto,Arial,sans-serif`;x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';x.fillText(t,q[0],q[1]);x.textAlign='left';x.textBaseline='alphabetic'}});
+    // nomes em português (no claro e no satélite; o fundo de ruas já traz os nomes)
+    if(baseKey!=='ruas'){x.textBaseline='middle';const tc=sat?'#fff':'#3d4657',hc=sat?'rgba(0,0,0,.85)':'#fff',mc=sat?'#fff':'#5b6475';
+      UFS.forEach(([sg,polys])=>{let best=polys[0];polys.forEach(p=>{if(p[0].length>best[0].length)best=p});const c=P(L.polygon(best).getBounds().getCenter());
+        x.textAlign='center';halo(sg,c[0],c[1],`600 ${11*F}px "Segoe UI",Roboto,Arial,sans-serif`,3*F,sat?'#fff':'#7a8396',hc)});x.textAlign='left';
+      const ML=MUNRAW.split(';').map(r=>{const a=r.split('|');return {n:a[0],lat:+a[2],lon:+a[3],cap:a[4]==='1',pop:+a[5]||0}});
+      const boxes=[],hit=b=>boxes.some(q=>b[0]<q[2]&&b[2]>q[0]&&b[1]<q[3]&&b[3]>q[1]),inV=p=>p[0]>-50&&p[1]>-50&&p[0]<cv.width+50&&p[1]<cv.height+50;
+      const dot=(p,r,fill,st)=>{x.beginPath();x.arc(p[0],p[1],r,0,7);x.fillStyle=fill;x.fill();if(st){x.lineWidth=1.5*F;x.strokeStyle=st;x.stroke()}};
+      x.font=`${12*F}px "Segoe UI",Roboto,Arial,sans-serif`;
+      ML.filter(m=>m.cap).forEach(m=>{const p=P([m.lat,m.lon]);if(!inV(p))return;const w=x.measureText(m.n).width;boxes.push([p[0]-8*F,p[1]-9*F,p[0]+w+12*F,p[1]+9*F]);
+        dot(p,3*F,sat?'#222':'#fff',sat?'#fff':'#3d4657');halo(m.n,p[0]+7*F,p[1],`${12*F}px "Segoe UI",Roboto,Arial,sans-serif`,3*F,tc,hc)});
+      const z=zE+1,minPop=z>=11?0:z>=10?8000:z>=9?25000:z>=8?70000:z>=7?180000:400000;let n=0;
+      x.font=`${11*F}px "Segoe UI",Roboto,Arial,sans-serif`;
+      for(const m of ML){if(m.cap)continue;if(m.pop<minPop)break;const p=P([m.lat,m.lon]);if(!inV(p))continue;const w=x.measureText(m.n).width,b=[p[0]-8*F,p[1]-8*F,p[0]+w+10*F,p[1]+8*F];
+        if(hit(b))continue;boxes.push(b);dot(p,2*F,mc);halo(m.n,p[0]+6*F,p[1],`${11*F}px "Segoe UI",Roboto,Arial,sans-serif`,3*F,mc,hc);if(++n>3000)break}
+      x.textBaseline='alphabetic'}
+    // logo, legenda e créditos, nas mesmas posições da tela
+    const mr=mEl.getBoundingClientRect(),rel=el=>{const b=el.getBoundingClientRect();return [(b.left-mr.left)*S,(b.top-mr.top)*S,b.width*S,b.height*S]};
+    const lg=mEl.querySelector('.mlogo');if(lg&&lg.offsetWidth){const [a,b,w,h]=rel(lg);x.save();x.shadowColor='#fff';x.shadowBlur=3*S;x.drawImage(lg,a,b,w,h);x.restore()}
+    if(legEl.style.display!=='none'){const [a,b,w,h]=rel(legEl);x.fillStyle='rgba(255,255,255,.96)';x.shadowColor='rgba(0,0,0,.25)';x.shadowBlur=6*S;
+      x.beginPath();x.roundRect?x.roundRect(a,b,w,h,8*S):x.rect(a,b,w,h);x.fill();x.shadowBlur=0;
+      const t=rel(legEl.querySelector('.lg-t span'));x.textBaseline='middle';x.fillStyle='#1d2433';x.font=`700 ${13*S}px "Segoe UI",Roboto,Arial,sans-serif`;x.fillText('Concessionárias',t[0],t[1]+t[3]/2);
+      const fs=parseFloat(getComputedStyle(legEl.querySelector('ul')).fontSize)*S;x.font=`${fs}px "Segoe UI",Roboto,Arial,sans-serif`;
+      legEl.querySelectorAll('li').forEach(li=>{const sw=li.querySelector('span'),r=rel(sw),bg=getComputedStyle(sw).backgroundColor,round=sw.classList.contains('pdot');
+        x.fillStyle=bg;if(round){x.beginPath();x.arc(r[0]+r[2]/2,r[1]+r[3]/2,r[2]/2,0,7);x.fill()}else x.fillRect(r[0],r[1],r[2],r[3]);
+        const lr=rel(li);x.fillStyle='#1d2433';x.fillText(li.textContent,r[0]+r[2]+6*S,lr[1]+lr[3]/2)});x.textBaseline='alphabetic'}
+    const cred='Fonte: Dados Abertos da ANTT e SNV/DNIT · Produzido pela Superintendência de Infraestrutura Rodoviária – SUROD/ANTT'+(plain?'':' · Mapa de fundo: Esri, HERE, Garmin, © OpenStreetMap');
+    x.font=`${11*S}px "Segoe UI",Roboto,Arial,sans-serif`;const cw=x.measureText(cred).width+18*S;x.fillStyle='rgba(255,255,255,.85)';x.fillRect((cv.width-cw)/2,cv.height-24*S,cw,18*S);
+    x.fillStyle='#4a5466';x.textAlign='center';x.textBaseline='middle';x.fillText(cred,cv.width/2,cv.height-15*S);x.textAlign='left';x.textBaseline='alphabetic';
+    const nome='mapa_concessoes_'+new Date().toISOString().slice(0,10);
+    // no Claude o arquivo é entregue pela capacidade de downloads; fora dele (GitHub, Power BI), por link de download
+    const save=async(blob,ext)=>{let d=null;try{if(window.claude&&typeof window.claude.use==='function')d=await window.claude.use('downloads')}catch(e){}
+      if(d){try{await d.save({filename:nome+'.'+ext,data:blob})}catch(e){}return}
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome+'.'+ext;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)};
+    // fundo de satélite/ruas é foto: em JPEG o arquivo fica bem menor que em PNG, sem perda visível
+    if(fmt==='png')cv.toBlob(b=>{save(b,plain?'png':'jpg');fim()},plain?'image/png':'image/jpeg',.92);
+    else cv.toBlob(b=>b.arrayBuffer().then(buf=>{save(pdfJpeg(new Uint8Array(buf),cv.width,cv.height),'pdf');fim()}),'image/jpeg',.92);
+  }).catch(e=>{console.error(e);alertMsg();fim()});
+  function fim(){document.querySelectorAll('.exp').forEach(b=>b.disabled=false);btn.textContent=old}
+  function alertMsg(){btn.textContent='Erro ao gerar'}
+}
+// PDF de uma página com a imagem JPEG (página no tamanho A3 deitado, imagem em resolução cheia)
+function pdfJpeg(jpg,w,h){
+  const PW=1190.55,PH=PW*h/w,enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const add=d=>{const b=typeof d==='string'?enc.encode(d):d;parts.push(b);len+=b.length};
+  const obj=(n,body)=>{offs[n]=len;add(n+' 0 obj\n');body();add('\nendobj\n')};
+  add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1,()=>add('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2,()=>add('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
+  obj(3,()=>add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW.toFixed(2)} ${PH.toFixed(2)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`));
+  obj(4,()=>{add(`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);add(jpg);add('\nendstream')});
+  const cs=`q ${PW.toFixed(2)} 0 0 ${PH.toFixed(2)} 0 0 cm /Im0 Do Q`;
+  obj(5,()=>add(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
+  const xr=len;add('xref\n0 6\n0000000000 65535 f \n');for(let i=1;i<=5;i++)add(String(offs[i]).padStart(10,'0')+' 00000 n \n');
+  add(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xr}\n%%EOF`);
+  return new Blob(parts,{type:'application/pdf'});
+}
 update(false);fitBR();
 /* ===== origem e destino: municípios (IBGE) + rotas OSRM (OpenStreetMap) ===== */
 (function(){
@@ -1390,6 +1498,7 @@ function tolls(rt){
 const rtPane=map.createPane('rt');rtPane.style.zIndex=450;
 const rtR=L.svg({pane:'rt'});
 const rtLayer=L.layerGroup().addTo(map);let ROUTES=[],SEL=0;
+window._rt=()=>({ROUTES,SEL,rtLayer});
 const pin=(p,color)=>L.marker([p.lat,p.lon],{pane:'rt',icon:L.divIcon({className:'',html:`<div class="odpin" style="background:${color}"></div>`}),title:lab(p)}).bindTooltip(lab(p),{direction:'top',offset:[0,-8]});
 function draw(){
   rtLayer.clearLayers();if(!ROUTES.length){map.getPane('overlayPane').style.opacity='';return}
