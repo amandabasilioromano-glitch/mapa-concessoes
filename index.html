@@ -782,6 +782,8 @@ body.noexp #map.isfs .exp[data-f="pdf"]{display:none}
 
 .legend{position:absolute;z-index:1000;background:rgba(255,255,255,.96);border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.25);padding:0 12px 10px;overflow:hidden;resize:both;min-width:150px;min-height:80px;max-width:calc(100% - 20px);max-height:calc(100% - 20px);font:12.5px "Segoe UI",Roboto,Arial,sans-serif;color:#1d2433;cursor:default}
 .legend .lg-t{display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:13px;padding:9px 0 6px;cursor:move;user-select:none;position:sticky;top:0;background:inherit;touch-action:none}
+.legend .lg-s{font-weight:700;font-size:.92em;color:#1351b4;text-transform:uppercase;letter-spacing:.04em;margin:.55em 0 .2em;padding-top:.45em;border-top:1px solid #e2e5eb}
+.legend .lg-s:first-child{margin-top:0;padding-top:0;border-top:0}
 .legend .lg-grip{color:#98a2b3;font-size:14px;margin-left:12px}
 .legend ul{list-style:none;margin:0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:max-content;column-gap:18px}
 .legend li{display:flex;align-items:center;gap:.55em;padding:2px 0;white-space:nowrap;line-height:1.25}
@@ -800,7 +802,7 @@ body.pfs #side{display:none}
 #map.sat .munlbl{color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}#map.sat .munlbl i{background:#fff}
 .pdot{width:11px;height:11px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25);flex:none}
 .pdot.pr{background:#0b2e6b}.pdot.ff{background:#e8590c}
-.legend .pdot{width:.85em;height:.85em;margin:0 .225em}
+.legend .pdot{width:.9em;height:.9em;margin:0 .2em;border-width:1px}
 .leaflet-ped-pane>svg,.leaflet-rt-pane>svg{pointer-events:none}
 .leaflet-ped-pane>svg path.leaflet-interactive,.leaflet-rt-pane>svg path.leaflet-interactive{pointer-events:visiblePainted}
 .busca{padding:12px 12px 4px}
@@ -1045,7 +1047,7 @@ new MapBar({position:'topright'}).addTo(map);
   const end=()=>{st=null};lg.addEventListener('pointerup',end);lg.addEventListener('pointercancel',end);})();
 // legenda das concessionárias: aparece só com o mapa em tela cheia, segue os filtros; dá para arrastar e redimensionar
 const legEl=document.createElement('div');legEl.className='legend';legEl.style.display='none';
-legEl.innerHTML='<div class="lg-t" title="Arraste para mover"><span>Concessionárias</span><span class="lg-grip">⠿</span></div><ul></ul>';
+legEl.innerHTML='<div class="lg-t" title="Arraste para mover"><span>Legenda</span><span class="lg-grip">⠿</span></div><div class="lg-b"></div>';
 document.getElementById('map').appendChild(legEl);
 L.DomEvent.disableClickPropagation(legEl);L.DomEvent.disableScrollPropagation(legEl);
 let legPos=null;
@@ -1058,30 +1060,35 @@ let legPos=null;
 })();
 // ajusta colunas e tamanho da letra para a lista ocupar o espaço da caixa, sem rolagem
 function fitLegend(){
-  const ul=legEl.querySelector('ul'),items=[...ul.children];if(!items.length||legEl.style.display==='none')return;
-  const n=items.length,hd=legEl.querySelector('.lg-t').offsetHeight;
+  const uls=[...legEl.querySelectorAll('.lg-b ul')],heads=[...legEl.querySelectorAll('.lg-s')];if(!uls.length||legEl.style.display==='none')return;
+  const items=uls.flatMap(u=>[...u.children]),ns=uls.map(u=>u.children.length),hd=legEl.querySelector('.lg-t').offsetHeight;
   const W=legEl.clientWidth-24,H=legEl.clientHeight-hd-10;
   _cv.font='12px "Segoe UI",Roboto,Arial,sans-serif';
-  const w12=Math.max(...items.map(li=>_cv.measureText(li.textContent).width));
+  const w12=Math.max(...items.map(li=>_cv.measureText(li.textContent).width),...heads.map(h=>_cv.measureText(h.textContent).width*1.05-20));
   let best={fs:0,c:1};
-  for(let c=1;c<=n;c++){
-    const rows=Math.ceil(n/c);
-    const fsH=(H/rows-4)/1.25;                           // altura: linhas * (1,25·fs + 4px)
-    const fsW=((W-18*(c-1))/c)/(w12/12+1.85);           // largura: c colunas * (texto + marcador)
+  for(let c=1;c<=Math.max(...ns);c++){
+    const rows=ns.reduce((t,n)=>t+Math.ceil(n/c),0);
+    // altura: linhas * (1,25·fs + 4px) + títulos das seções * (1,3·fs + 9px)
+    const fsH=(H-rows*4-heads.length*12)/(rows*1.25+heads.length*1.6);
+    const fsW=((W-18*(c-1))/c)/(w12/12+1.85);
     const fs=Math.min(fsH,fsW,20);
-    if(fs>best.fs+0.05)best={fs,c,rows};
+    if(fs>best.fs+0.05)best={fs,c};
   }
   const fs=Math.max(5,best.fs);
-  ul.style.fontSize=fs.toFixed(2)+'px';
-  ul.style.gridTemplateRows=`repeat(${Math.ceil(n/best.c)},auto)`;
+  legEl.querySelector('.lg-b').style.fontSize=fs.toFixed(2)+'px';
+  uls.forEach((u,i)=>u.style.gridTemplateRows=`repeat(${Math.ceil(ns[i]/best.c)},auto)`);
+  // ajuste fino: reduz a fonte até caber (largura e altura)
+  const bd=legEl.querySelector('.lg-b');let f=fs,k=0;
+  while(k++<40&&f>5&&(bd.scrollHeight>H+2||bd.scrollWidth>W+2)){f*=0.96;bd.style.fontSize=f.toFixed(2)+'px'}
 }
 if(window.ResizeObserver)new ResizeObserver(()=>fitLegend()).observe(legEl);
 window.updateLegend=function(){
   if(!document.fullscreenElement&&!window.PFS){legEl.style.display='none';return}
   const cs=[...new Set(SEG.filter(s=>pass(s)).map(s=>s.c))].sort((a,b)=>a.localeCompare(b,'pt'));
-  legEl.querySelector('ul').innerHTML=cs.map(c=>`<li><span class="sw" style="background:${colorOf[c]}"></span>${c}</li>`).join('')
-    +(document.getElementById('pedPr').checked?'<li><span class="pdot pr"></span>Praça de pedágio</li>':'')+(document.getElementById('pedFf').checked?'<li><span class="pdot ff"></span>Free flow</li>':'')
-    +RECT.filter(x=>document.querySelector(`[data-rec="${x.k}"]`).checked).map(x=>`<li><span class="pdot" style="background:${x.c}"></span>${x.l}</li>`).join('');
+  const ped=(document.getElementById('pedPr').checked?'<li><span class="pdot pr"></span>Praça de pedágio</li>':'')+(document.getElementById('pedFf').checked?'<li><span class="pdot ff"></span>Free flow</li>':'');
+  const rec=RECT.filter(x=>document.querySelector(`[data-rec="${x.k}"]`).checked).map(x=>`<li><span class="pdot" style="background:${x.c}"></span>${x.l}</li>`).join('');
+  const sec=(t,h)=>h?`<div class="lg-s">${t}</div><ul>${h}</ul>`:'';
+  legEl.querySelector('.lg-b').innerHTML=sec('Concessionárias',cs.map(c=>`<li><span class="sw" style="background:${colorOf[c]}"></span>${c}</li>`).join(''))+sec('Pedágio',ped)+sec('Recursos operacionais',rec);
   const first=legEl.style.display==='none';legEl.style.display='';
   fitLegend();
   if(first&&!legPos){if(!legEl.style.width){legEl.style.width='400px';legEl.style.height='390px'}fitLegend();requestAnimationFrame(()=>{const m=document.getElementById('map');legEl.style.left='20px';legEl.style.top=Math.max(70,m.clientHeight-legEl.offsetHeight-90)+'px'})}
@@ -1339,8 +1346,9 @@ function exportMap(fmt,btn){
     const lg=mEl.querySelector('.mlogo');if(lg&&lg.offsetWidth){const [a,b,w,h]=rel(lg);x.save();x.shadowColor='#fff';x.shadowBlur=3*S;x.drawImage(lg,a,b,w,h);x.restore()}
     if(legEl.style.display!=='none'){const [a,b,w,h]=rel(legEl);x.fillStyle='rgba(255,255,255,.96)';x.shadowColor='rgba(0,0,0,.25)';x.shadowBlur=6*S;
       x.beginPath();x.roundRect?x.roundRect(a,b,w,h,8*S):x.rect(a,b,w,h);x.fill();x.shadowBlur=0;
-      const t=rel(legEl.querySelector('.lg-t span'));x.textBaseline='middle';x.fillStyle='#1d2433';x.font=`700 ${13*S}px "Segoe UI",Roboto,Arial,sans-serif`;x.fillText('Concessionárias',t[0],t[1]+t[3]/2);
-      const fs=parseFloat(getComputedStyle(legEl.querySelector('ul')).fontSize)*S;x.font=`${fs}px "Segoe UI",Roboto,Arial,sans-serif`;
+      const t=rel(legEl.querySelector('.lg-t span'));x.textBaseline='middle';x.fillStyle='#1d2433';x.font=`700 ${13*S}px "Segoe UI",Roboto,Arial,sans-serif`;x.fillText(legEl.querySelector('.lg-t span').textContent,t[0],t[1]+t[3]/2);
+      legEl.querySelectorAll('.lg-s').forEach(h=>{const r=rel(h),cs=getComputedStyle(h);if(parseFloat(cs.borderTopWidth)){x.fillStyle='#e2e5eb';x.fillRect(r[0],r[1],r[2],S)}x.fillStyle='#1351b4';x.font=`700 ${parseFloat(cs.fontSize)*S}px "Segoe UI",Roboto,Arial,sans-serif`;x.fillText(h.textContent.toUpperCase(),r[0],r[1]+r[3]-parseFloat(cs.fontSize)*S*.6)});
+      const fs=parseFloat(getComputedStyle(legEl.querySelector('.lg-b li')).fontSize)*S;x.font=`${fs}px "Segoe UI",Roboto,Arial,sans-serif`;
       legEl.querySelectorAll('li').forEach(li=>{const sw=li.querySelector('span'),r=rel(sw),bg=getComputedStyle(sw).backgroundColor,round=sw.classList.contains('pdot');
         x.fillStyle=bg;if(round){x.beginPath();x.arc(r[0]+r[2]/2,r[1]+r[3]/2,r[2]/2,0,7);x.fill()}else x.fillRect(r[0],r[1],r[2],r[3]);
         const lr=rel(li);x.fillStyle='#1d2433';x.fillText(li.textContent,r[0]+r[2]+6*S,lr[1]+lr[3]/2)});x.textBaseline='alphabetic'}
