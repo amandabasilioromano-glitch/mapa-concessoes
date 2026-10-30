@@ -762,6 +762,11 @@ html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,san
 .exp{display:none;align-items:center;background:#f4f7fb;border:1px solid #c9d4e3;border-radius:6px;box-shadow:0 1px 4px rgba(19,81,180,.15);padding:0 11px;font:inherit;font-size:13px;font-weight:600;color:#1351b4;cursor:pointer;white-space:nowrap}
 .exp:hover{background:#1351b4;border-color:#1351b4;color:#fff}.exp:disabled{opacity:.6;cursor:wait}
 #map.isfs .exp{display:flex}
+.expov{position:fixed;inset:0;z-index:5000;background:rgba(7,29,65,.55);display:flex;align-items:center;justify-content:center;font-family:"Segoe UI",Roboto,Arial,sans-serif}
+.expbox{background:#fff;border-radius:10px;max-width:92vw;max-height:92vh;display:flex;flex-direction:column;padding:14px 18px;box-shadow:0 6px 30px rgba(0,0,0,.35);font-size:13px;color:#1d2433}
+.exph{display:flex;justify-content:space-between;align-items:center;font-size:15px}.exph button{border:0;background:none;font-size:18px;cursor:pointer;color:#5b6475}
+.expbox p{margin:8px 0;line-height:1.4}.expimg{flex:1;min-height:0;overflow:auto;border:1px solid #e2e5eb;border-radius:6px}
+.expimg img{display:block;max-width:86vw;max-height:58vh;object-fit:contain;margin:auto}.expl{font-size:12px;color:#5b6475;word-break:break-all}
 #map.isfs .mapbar .fs{order:9}
 .fs:hover{background:#1351b4;border-color:#1351b4;color:#fff}
 #od{margin:12px 12px 6px;border:1px solid #c7d7f2;border-radius:10px;background:#edf3fd}
@@ -1322,6 +1327,9 @@ function exportMap(fmt,btn){
     // no Claude o arquivo é entregue pela capacidade de downloads; fora dele (GitHub, Power BI), por link de download
     const save=async(blob,ext)=>{let d=null;try{if(window.claude&&typeof window.claude.use==='function')d=await window.claude.use('downloads')}catch(e){}
       if(d){try{await d.save({filename:nome+'.'+ext,data:blob})}catch(e){}return}
+      let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
+      // dentro do Power BI o download é bloqueado: mostra a imagem para salvar com o botão direito
+      if(emb){showExport(blob,ext,fmt==='pdf'?cv:null);return}
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome+'.'+ext;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)};
     // fundo de satélite/ruas é foto: em JPEG o arquivo fica bem menor que em PNG, sem perda visível
     if(fmt==='png')cv.toBlob(b=>{save(b,plain?'png':'jpg');fim()},plain?'image/png':'image/jpeg',.92);
@@ -1330,6 +1338,18 @@ function exportMap(fmt,btn){
   function fim(){document.querySelectorAll('.exp').forEach(b=>b.disabled=false);btn.textContent=old}
   function alertMsg(){btn.textContent='Erro ao gerar'}
 }
+function showExport(blob,ext,cvPdf){
+  const done=b=>{const url=URL.createObjectURL(b),site=location.href.split('#')[0].replace(/[?&]ui=[^&]*/,'');
+    const ov=document.createElement('div');ov.className='expov';
+    ov.innerHTML=`<div class="expbox"><div class="exph"><b>Imagem do mapa em alta resolução</b><button type="button" aria-label="Fechar">✕</button></div>
+      <p>Aqui dentro do Power BI o download direto é bloqueado. Para salvar, <b>clique com o botão direito na imagem</b> e escolha <b>“Salvar imagem como…”</b>. A imagem salva vem em resolução cheia.</p>
+      ${cvPdf?'<p>O PDF só pode ser baixado abrindo o mapa fora do Power BI, pelo endereço abaixo (botão “⬇ PDF” com o mapa expandido).</p>':''}
+      <div class="expimg"><img src="${url}" alt="Mapa de Concessões Federais"></div>
+      <p class="expl">Mapa completo: <a href="${site}" target="_blank" rel="noopener">${site}</a></p></div>`;
+    const close=()=>{ov.remove();URL.revokeObjectURL(url)};ov.querySelector('.exph button').onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close()});
+    document.body.appendChild(ov)};
+  // para o PDF, a prévia é a mesma imagem em PNG/JPG
+  if(cvPdf)cvPdf.toBlob(done,baseKey==='claro'?'image/png':'image/jpeg',.92);else done(blob)}
 // PDF de uma página com a imagem JPEG (página no tamanho A3 deitado, imagem em resolução cheia)
 function pdfJpeg(jpg,w,h){
   const PW=1190.55,PH=PW*h/w,enc=new TextEncoder(),parts=[],offs=[];let len=0;
