@@ -669,7 +669,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <style>
 :root{--bg:#f6f7f9;--panel:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e2e5eb;--acc:#1351b4;--acc-soft:#e8eefa}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
 #app{display:flex;height:100vh}
 #side{width:360px;min-width:360px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
 #side header{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
@@ -947,6 +947,9 @@ body.short #side{height:88%!important}
 window.UIK=1;window.isMob=()=>innerWidth<=760;
 (function(){let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
   const sw=Math.min(screen.width||9999,screen.height||9999),coarse=matchMedia('(pointer:coarse)').matches;
+  // página alta no computador (ou tablet): o mapa ocupa só o topo, na proporção da página original (2330×1080); ?dh= muda a proporção
+  if(emb&&innerWidth>760&&innerHeight>innerWidth*1.2&&!(coarse&&sw<=520)){const dq=+new URLSearchParams(location.search).get('dh')||1080/2330;
+    const fit=()=>{document.getElementById('app').style.height=Math.round(innerWidth*dq)+'px';setTimeout(()=>{try{map.invalidateSize()}catch(e){}},50)};fit();window.addEventListener('resize',fit);return}
   if(!emb||!coarse||sw>520||innerWidth<=760)return;
   const app=document.getElementById('app');let mobSt=null,rot=null,tried=0;
   const PBI='https://app.powerbi.com/view?r=eyJrIjoiMzc2OGVkZjYtY2JhNC00MzhhLTg4OTItY2JkM2E2NDljN2ZjIiwidCI6Ijg3YmJlOWRlLWE4OTItNGNkZS1hNDY2LTg4Zjk4MmZiYzQ5MCJ9';
@@ -956,14 +959,15 @@ window.UIK=1;window.isMob=()=>innerWidth<=760;
   const mobCss=()=>{let t='';for(const sh of document.styleSheets){let rs;try{rs=sh.cssRules}catch(e){continue}
       for(const r of rs)if(r.media&&/max-width:\s*(760|380)px/.test(r.media.mediaText)){const w=+r.media.mediaText.match(/(\d+)px/)[1];t+=`@media (min-width:0px){/*${w}*/${[...r.cssRules].map(x=>x.cssText).join('')}}`}}return t};
   const apply=()=>{const a=screen.width,b=screen.height,o=screen.orientation&&screen.orientation.type,land=o?/landscape/.test(o):Math.abs(window.orientation||0)===90,W=land?Math.max(a,b):Math.min(a,b),H=land?Math.min(a,b):Math.max(a,b);
-    const k=Math.max(1,innerWidth/W,innerHeight/(H*.8)),w=innerWidth/k,h=innerHeight/k;UIK=k;
+    // página alta (ajustar à largura): o Power BI encaixa a largura na tela; senão, encaixa a página inteira
+    const tall=innerHeight>innerWidth*1.2,k=tall?Math.max(1,innerWidth/W):Math.max(1,innerWidth/W,innerHeight/(H*.8)),w=innerWidth/k,h=tall?Math.min(innerHeight/k,H*(land?.8:.82)):innerHeight/k;UIK=k;
     document.documentElement.style.setProperty('--vw',w+'px');document.documentElement.style.overflow='hidden';
-    app.style.cssText=`width:${w}px;height:${h}px;transform:scale(${k});transform-origin:0 0`;
+    app.style.cssText=`overflow:hidden;width:${w}px;height:${h}px;transform:scale(${k});transform-origin:0 0`;
     if(!mobSt){mobSt=document.createElement('style');document.head.appendChild(mobSt)}
     if(!mobSt.dataset.full)mobSt.dataset.full=mobCss();
     const parts=mobSt.dataset.full.split('@media (min-width:0px)').filter(Boolean);
-    mobSt.textContent=parts.filter(x=>{const n=+x.match(/\/\*(\d+)\*\//)[1];return w<=n}).map(x=>'@media (min-width:0px)'+x).join('');
-    window.isMob=()=>w<=760;document.body.classList.toggle('phone',true);document.body.classList.toggle('short',h<420);
+    mobSt.textContent=parts.filter(x=>{const n=+x.match(/\/\*(\d+)\*\//)[1];return n===760||w<=n}).map(x=>'@media (min-width:0px)'+x).join('');
+    window.isMob=()=>true;document.body.classList.toggle('phone',true);document.body.classList.toggle('short',h<420);
     // ?cel=<nome da página do Power BI, ex.: ReportSection123abc> (ou o link inteiro): com o celular em pé, tenta levar para a página de celular
     if(!rot){rot=document.createElement('div');rot.className='rotmsg';
       rot.innerHTML='<div><b>⟳</b><span class="rm-t">Gire o celular para a horizontal para usar o mapa.</span>'+(CEL?'<button type="button" class="rm-go">Abrir versão para celular</button>':'')+'<button type="button" class="rm-ok">Continuar assim</button></div>';
