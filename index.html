@@ -1720,7 +1720,7 @@ function renderRes(){
       ${T.items.length?`<ul>${T.items.map(it=>`<li><span class="pd" style="background:${it.tipo==='pr'?'#0b2e6b':'#e8590c'}"></span><span>${it.num?it.num+' – ':''}${it.nome}<br><small style="color:var(--muted)">${it.c} · ${it.tipo==='pr'?'praça':'free flow'}</small></span><span class="v">${brl(it.v)}</span></li>`).join('')}</ul>`:'<div class="nt">Sem pedágio federal nesta rota.</div>'}
       ${T.notes.length?`<div class="nt">${T.notes.join('<br>')}</div>`:''}<div class="nt">Tarifa cheia, sem desconto de TAG. Fonte: ANTT.</div></div>`:'';
     return `<div class="rcard${i===SEL?' sel':''}" data-i="${i}"><div class="h"><b>Rota ${i+1}</b>${fmt1(r.km)} km<span>~${dur(r.s)}</span></div><div class="via" style="color:#0b2e6b;font-weight:600">Pedágio: ${brl(T.total)}</div>
-      ${r.pela?`<div class="via">passando por ${r.pela}</div>`:''}<div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
+      ${r.pela?`<div class="via">${/^pela /.test(r.pela)?r.pela:'passando por '+r.pela}</div>`:''}<div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
    + (ROUTES.length?'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+(SRC==='tomtom'?'Rotas: © TomTom. Tempo com trânsito previsto para a data e o horário escolhidos.':'Rotas: OSRM / © OpenStreetMap. Distância e tempo estimados.')+'</div>':'');
   box.querySelectorAll('.rcard').forEach(c=>c.onclick=()=>select(+c.dataset.i));
 }
@@ -1750,6 +1750,30 @@ function overlap(a,b){const C=0.01,g=new Map();b.forEach(p=>{const k=Math.floor(
   for(let i=0;i<a.length;i+=st){n++;const p=a[i],ci=Math.floor(p[0]/C),cj=Math.floor(p[1]/C);let ok=false;
     for(let x=-1;x<=1&&!ok;x++)for(let y=-1;y<=1&&!ok;y++){const L=g.get((ci+x)+'|'+(cj+y));if(L)ok=L.some(q=>hav(p,q)<0.35)}if(ok)hit++}
   return hit/n}
+
+// rota pela rodovia federal concedida: quando a melhor rota só entra na concessão bem depois da origem (ou sai dela bem antes
+// do destino) — ex.: SP→RJ pela Ayrton Senna/Carvalho Pinto em vez da Dutra —, gera pontos de passagem na própria rodovia
+function concVias(de,para,coords){
+  const an=analyse(coords),O=[de.lat,de.lon],D=[para.lat,para.lon],vias=[];let label='';
+  an.conc.filter(o=>o.km>=30).forEach(o=>{
+    const i1=an.runs.findIndex(u=>u.c===o.c),i2=an.runs.length-1-an.runs.slice().reverse().findIndex(u=>u.c===o.c);
+    const cnt={};an.runs[i1].p.forEach(p=>{if(p.si!=null){const k=SEG[p.si].r;cnt[k]=(cnt[k]||0)+p.km}});
+    const rod=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];if(!rod)return;
+    const pts=[];SEG.forEach(s=>{if(s.c===o.c&&!s.co&&s.r===rod)s.g.forEach(l=>l.forEach(p=>pts.push(p)))});if(pts.length<2)return;
+    const side=(A,E)=>{let P=pts[0],bd=1e9;pts.forEach(p=>{const d=hav(A,p);if(d<bd){bd=d;P=p}});
+      const L=hav(P,E);if(bd>25||bd>0.6*hav(A,E)||L<30)return [];
+      const mid=pts.filter(p=>hav(P,p)+hav(p,E)<1.15*L);
+      return [0.3,0.65].map(f=>{let q=null,qd=1e9;mid.forEach(p=>{const d=Math.abs(hav(P,p)-f*L);if(d<qd){qd=d;q=p}});return q}).filter(Boolean)};
+    const a=side(O,an.runs[i1].p[0].a),b=side(D,an.runs[i2].p[an.runs[i2].p.length-1].b).reverse();
+    if(a.length||b.length){vias.push(...a.map(p=>({lat:p[0],lon:p[1],_o:hav(O,p)})),...b.map(p=>({lat:p[0],lon:p[1],_o:hav(O,p)})));label=label||rod}});
+  vias.sort((x,y)=>x._o-y._o);
+  return vias.length?{vias:vias.slice(0,4),label}:null}
+
+// a rota passa duas vezes pelo mesmo lugar (com mais de 15 km de rota entre as passagens)?
+function loopy(c){const g=new Map();let acc=0;
+  for(let i=0;i<c.length;i++){if(i)acc+=hav(c[i-1],c[i]);const k=Math.round(c[i][0]/0.02)+'|'+Math.round(c[i][1]/0.02),v=g.get(k);
+    if(v===undefined)g.set(k,acc);else if(acc-v>15)return true}
+  return false}
 async function moreRoutes(de,para,rs,onAdd){
   const A=[de.lat,de.lon],B=[para.lat,para.lon],D=hav(A,B);if(D<15)return rs;
   const best=Math.min(...rs.map(r=>r.km)),near=(c)=>rs.some(r=>{for(let i=0;i<r.coords.length;i+=3)if(hav(c,r.coords[i])<4)return true;return false});
@@ -1778,6 +1802,7 @@ async function moreRoutes(de,para,rs,onAdd){
       let x=0;while(x<15&&hav(coords[at(S[ix]-x-0.1)],coords[at(S[ix]+x+0.1)])<0.12)x+=0.1;
       if(x>0){const a=at(S[ix]-x),b=at(S[ix]+x);coords=coords.slice(0,a).concat(coords.slice(b));const cut=S[b]-S[a];sx-=sx*cut/km}
       const kmx=coords.reduce((t,p,j)=>j?t+hav(coords[j-1],p):0,0);if(kmx>1.35*best)return;
+      if(loopy(coords))return; // descarta caminhos que vão e voltam pelo mesmo lugar (ex.: entrar numa cidade fora do caminho)
       if(out.some(o=>overlap(coords,o.coords)>0.8))return;
       const nr={coords,km:kmx,s:sx,pela:g.m.n+' ('+g.m.uf+')'};out.push(nr);if(onAdd)try{onAdd(nr)}catch(e){}};
   let next=0;const worker=async()=>{while(next<cand.length&&out.length<7&&Date.now()-T0<60000){const m=cand[next++];take(await get(m))}};
@@ -1853,6 +1878,9 @@ async function calc(){CALCID++;
   try{
     let rsT=await ttRoutes(pts,stops.length);
     if(rsT){SRC='tomtom';const mk=r=>{const o={de,para,stops,coords:r.coords,km:r.km,s:r.s,pela:r.pela,an:analyse(r.coords)};o.toll=tolls(o);return o};
+      if(!stops.length){const cv=concVias(de,para,rsT[0].coords);
+        if(cv){const x=await ttRoutes([de,...cv.vias,para],cv.vias.length);
+          if(x&&x[0]&&x[0].s<=1.6*rsT[0].s&&!rsT.some(o=>overlap(x[0].coords,o.coords)>0.9)){x[0].pela='pela '+cv.label+' (rodovia concedida)';rsT=rsT.slice(0,4).concat(x[0]).sort((a,b)=>a.s-b.s)}}}
       ROUTES=rsT.slice(0,5).map(mk);SEL=0;draw();renderRes();select(0);
       msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');return}
     SRC='osrm';
