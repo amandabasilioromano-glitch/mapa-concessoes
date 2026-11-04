@@ -882,6 +882,16 @@ body.pfs #side{display:none}
 .bm button{white-space:nowrap}
 .rotmsg{position:fixed;inset:0;z-index:5000;background:rgba(15,30,60,.82);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;text-align:center}.rotmsg[hidden]{display:none}.rotmsg>div{max-width:80%}.rotmsg b{display:block;font-size:40px;margin-bottom:6px}.rotmsg .rm-go{background:#fff!important;color:#1351b4!important;font-weight:600}.rotmsg button{display:block;margin:14px auto 0;background:none;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:16px;padding:6px 14px;font:inherit;font-size:13px}
 body.short #side{height:88%!important}
+#wzv{position:absolute;inset:0;z-index:1500;display:flex;flex-direction:column;background:#fff}#wzv[hidden]{display:none}
+#wzv iframe{flex:1;border:0;width:100%}
+.wzh{display:flex;align-items:center;gap:12px;padding:7px 10px;background:#fff;border-bottom:1px solid #e2e5eb;font-size:12.5px;color:#5b6b82}
+.wzback{border:1px solid #c5ccd8;background:#fff;color:#1351b4;font:inherit;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer}
+.wzback:hover{background:#eef3fb}
+#map.wzon .leaflet-control-container,#map.wzon .mlogo,#map.wzon .mcred,#map.wzon .legend{visibility:hidden}
+.bm .wzb{border-left:1px solid #e2e5eb;margin-left:4px;padding-left:12px}
+.rwz{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.rwz a,.rwz button{font:inherit;font-size:12px;font-weight:600;padding:6px 10px;border-radius:7px;border:1px solid #c5ccd8;background:#fff;color:#1351b4;cursor:pointer;text-decoration:none}
+.wznav{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1b2a41}.wznav[hidden]{display:none}.wznav button{border:1px solid #c5ccd8;background:#fff;color:#1351b4;font:inherit;font-size:16px;width:30px;height:30px;border-radius:7px;cursor:pointer}.wznav button:disabled{opacity:.35;cursor:default}
+@media (max-width:760px){.wzi{display:none}.bm .wzb{padding-left:8px;margin-left:2px}}
 </style>
 </head>
 <body>
@@ -947,10 +957,7 @@ body.short #side{height:88%!important}
 window.UIK=1;window.isMob=()=>innerWidth<=760;
 (function(){let emb=false;try{emb=window.self!==window.top}catch(e){emb=true}
   const sw=Math.min(screen.width||9999,screen.height||9999),coarse=matchMedia('(pointer:coarse)').matches;
-  // página alta no computador (ou tablet): o mapa ocupa só o topo, na proporção da página original (2330×1080); ?dh= muda a proporção
-  if(emb&&innerWidth>760&&innerHeight>innerWidth*1.2&&!(coarse&&sw<=520)){const dq=+new URLSearchParams(location.search).get('dh')||1080/2330;
-    const fit=()=>{document.getElementById('app').style.height=Math.round(innerWidth*dq)+'px';setTimeout(()=>{try{map.invalidateSize()}catch(e){}},50)};fit();window.addEventListener('resize',fit);return}
-  if(!emb||!coarse||sw>520||innerWidth<=760)return;
+  if(!emb)return;
   const app=document.getElementById('app');let mobSt=null,rot=null,tried=0;
   const PBI='https://app.powerbi.com/view?r=eyJrIjoiMzc2OGVkZjYtY2JhNC00MzhhLTg4OTItY2JkM2E2NDljN2ZjIiwidCI6Ijg3YmJlOWRlLWE4OTItNGNkZS1hNDY2LTg4Zjk4MmZiYzQ5MCJ9';
   const cq=new URLSearchParams(location.search).get('cel'),CEL=cq?(/^https:\/\/app\.powerbi\.com\//.test(cq)?cq:PBI+'&pageName='+encodeURIComponent(cq)):null;
@@ -958,7 +965,12 @@ window.UIK=1;window.isMob=()=>innerWidth<=760;
     if(click){try{const w=window.open(CEL,'_top');if(w)return true}catch(e){}try{const w=window.open(CEL,'_blank');if(w)return true}catch(e){}}return false};
   const mobCss=()=>{let t='';for(const sh of document.styleSheets){let rs;try{rs=sh.cssRules}catch(e){continue}
       for(const r of rs)if(r.media&&/max-width:\s*(760|380)px/.test(r.media.mediaText)){const w=+r.media.mediaText.match(/(\d+)px/)[1];t+=`@media (min-width:0px){/*${w}*/${[...r.cssRules].map(x=>x.cssText).join('')}}`}}return t};
-  const apply=()=>{const a=screen.width,b=screen.height,o=screen.orientation&&screen.orientation.type,land=o?/landscape/.test(o):Math.abs(window.orientation||0)===90,W=land?Math.max(a,b):Math.min(a,b),H=land?Math.min(a,b):Math.max(a,b);
+  const dq=+new URLSearchParams(location.search).get('dh')||1080/2330;
+  const reset=()=>{UIK=1;window.isMob=()=>innerWidth<=760;app.style.cssText='';document.documentElement.style.removeProperty('--vw');if(mobSt)mobSt.textContent='';document.body.classList.remove('phone','short');if(rot)rot.hidden=true};
+  const inv=()=>setTimeout(()=>{try{map.invalidateSize()}catch(e){}},50);
+  const apply=()=>{const phone=coarse&&sw<=520&&innerWidth>760,tallDesk=!phone&&innerWidth>760&&innerHeight>innerWidth*1.2;
+    if(!phone){reset();if(tallDesk)app.style.height=Math.round(innerWidth*dq)+'px';inv();return}
+    const a=screen.width,b=screen.height,o=screen.orientation&&screen.orientation.type,land=o?/landscape/.test(o):Math.abs(window.orientation||0)===90,W=land?Math.max(a,b):Math.min(a,b),H=land?Math.min(a,b):Math.max(a,b);
     // página alta (ajustar à largura): o Power BI encaixa a largura na tela; senão, encaixa a página inteira
     const tall=innerHeight>innerWidth*1.2,k=tall?Math.max(1,innerWidth/W):Math.max(1,innerWidth/W,innerHeight/(H*.8)),w=innerWidth/k,h=tall?Math.min(innerHeight/k,H*(land?.8:.82)):innerHeight/k;UIK=k;
     document.documentElement.style.setProperty('--vw',w+'px');document.documentElement.style.overflow='hidden';
@@ -1459,6 +1471,7 @@ function pdfJpeg(jpg,w,h){
   return new Blob(parts,{type:'application/pdf'});
 }
 update(false);fitBR();
+const EMB=(()=>{try{return window.self!==window.top}catch(e){return true}})();
 /* ===== origem e destino: municípios (IBGE) + rotas OSRM (OpenStreetMap) ===== */
 (function(){
 const MUN=MUNRAW.split(';').map(r=>{const a=r.split('|');return {n:a[0],uf:a[1],lat:+a[2],lon:+a[3],cap:a[4]==='1',k:norm(a[0])}});
@@ -1680,7 +1693,7 @@ function renderRes(){
       ${T.notes.length?`<div class="nt">${T.notes.join('<br>')}</div>`:''}<div class="nt">Tarifa cheia, sem desconto de TAG. Fonte: ANTT.</div></div>`:'';
     return `<div class="rcard${i===SEL?' sel':''}" data-i="${i}"><div class="h"><b>Rota ${i+1}</b>${fmt1(r.km)} km<span>~${dur(r.s)}</span></div><div class="via" style="color:#0b2e6b;font-weight:600">Pedágio: ${brl(T.total)}</div>
       ${r.pela?`<div class="via">passando por ${r.pela}</div>`:''}<div class="via">${via.length?'via '+via.join(', '):'sem trechos concedidos'} · ${fmt1(a.concKm)} km em concessões</div><div class="rbar">${bar}</div>${list}${tl}</div>`}).join('')
-   + (ROUTES.length?'<div style="font-size:11px;color:var(--muted);margin-top:8px">Rotas: OSRM / © OpenStreetMap. Distância e tempo estimados.</div>':'');
+   + (ROUTES.length?'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+(SRC==='tomtom'?'Rotas: © TomTom. Tempo com trânsito previsto para a data e o horário escolhidos.':'Rotas: OSRM / © OpenStreetMap. Distância e tempo estimados.')+'</div>':'');
   box.querySelectorAll('.rcard').forEach(c=>c.onclick=()=>select(+c.dataset.i));
 }
 // pontos (pedágio e recursos) a até 2 km da rota escolhida
@@ -1709,16 +1722,26 @@ function overlap(a,b){const C=0.01,g=new Map();b.forEach(p=>{const k=Math.floor(
   for(let i=0;i<a.length;i+=st){n++;const p=a[i],ci=Math.floor(p[0]/C),cj=Math.floor(p[1]/C);let ok=false;
     for(let x=-1;x<=1&&!ok;x++)for(let y=-1;y<=1&&!ok;y++){const L=g.get((ci+x)+'|'+(cj+y));if(L)ok=L.some(q=>hav(p,q)<0.35)}if(ok)hit++}
   return hit/n}
-async function moreRoutes(de,para,rs){
+async function moreRoutes(de,para,rs,onAdd){
   const A=[de.lat,de.lon],B=[para.lat,para.lon],D=hav(A,B);if(D<15)return rs;
   const best=Math.min(...rs.map(r=>r.km)),near=(c)=>rs.some(r=>{for(let i=0;i<r.coords.length;i+=3)if(hav(c,r.coords[i])<4)return true;return false});
-  const cand=[];for(let i=0;i<MUN.length&&cand.length<14;i++){const m=MUN[i];if(m===de||m===para)continue;const c=[m.lat,m.lon],da=hav(A,c),db=hav(c,B);
-    if(da+db>1.3*D||da<0.12*D||db<0.12*D||near(c))continue;
-    if(cand.some(o=>hav([o.lat,o.lon],c)<0.15*D))continue;cand.push(m)}
-  const out=rs.slice();
-  for(let i=0;i<cand.length&&out.length<5;i+=2){
-    const got=await Promise.all(cand.slice(i,i+2).map(m=>fetch(`https://router.project-osrm.org/route/v1/driving/${de.lon},${de.lat};${m.lon},${m.lat};${para.lon},${para.lat}?alternatives=false&overview=full&geometries=geojson`).then(r=>r.json()).then(d=>d.code==='Ok'&&d.routes[0]?{m,r:d.routes[0]}:null).catch(()=>null)));
-    got.forEach(g=>{if(!g||out.length>=5)return;const km=g.r.distance/1000;if(km>1.35*best)return;
+  // cidades de passagem: alterna as que menos desviam da linha reta e as maiores (por população), afastadas entre si
+  const pool=[];for(let i=0;i<MUN.length;i++){const m=MUN[i];if(m===de||m===para)continue;const c=[m.lat,m.lon],da=hav(A,c),db=hav(c,B);
+    if(da+db>1.3*D||da<0.12*D||db<0.12*D)continue;pool.push({m,i,det:da+db-D})}
+  const L1=pool.slice().sort((a,b)=>a.det-b.det),L2=pool,cand=[],seen=new Set();let p1=0,p2=0;
+  const pick=(L,p)=>{while(p<L.length){const m=L[p++].m;if(seen.has(m))continue;seen.add(m);const c=[m.lat,m.lon];
+      if(cand.some(x=>hav([x.lat,x.lon],c)<0.1*D)||near(c))continue;cand.push(m);break}return p};
+  while(cand.length<12&&(p1<L1.length||p2<L2.length)){p1=pick(L1,p1);if(cand.length<12)p2=pick(L2,p2)}
+  const out=rs.slice(),T0=Date.now();
+  // o servidor público de rotas é gratuito e às vezes lento ou limita pedidos: 2 pedidos por vez, até 20 s cada,
+  // uma nova tentativa se ele recusar, e no máximo ~60 s no total. Cada caminho achado já aparece na lista (onAdd).
+  const get=async(m,tries=2)=>{for(let k=0;k<tries;k++){if(Date.now()-T0>60000)return null;
+      const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),20000);
+      try{const res=await fetch(`https://router.project-osrm.org/route/v1/driving/${de.lon},${de.lat};${m.lon},${m.lat};${para.lon},${para.lat}?alternatives=false&overview=full&geometries=geojson`,{signal:ac.signal});
+        clearTimeout(tm);if(res.status===429||res.status>=500){await new Promise(z=>setTimeout(z,1500));continue}
+        const d=await res.json();return d.code==='Ok'&&d.routes[0]?{m,r:d.routes[0]}:null}catch(e){clearTimeout(tm);await new Promise(z=>setTimeout(z,800))}}
+    return null};
+  const take=g=>{if(!g||out.length>=7)return;const km=g.r.distance/1000;if(km>1.35*best)return;
       let coords=g.r.geometry.coordinates.map(c=>[c[1],c[0]]),sx=g.r.duration;
       // tira o "entra e sai" até o centro da cidade usada como passagem
       const S=[0];for(let j=1;j<coords.length;j++)S.push(S[j-1]+hav(coords[j-1],coords[j]));
@@ -1728,9 +1751,53 @@ async function moreRoutes(de,para,rs){
       if(x>0){const a=at(S[ix]-x),b=at(S[ix]+x);coords=coords.slice(0,a).concat(coords.slice(b));const cut=S[b]-S[a];sx-=sx*cut/km}
       const kmx=coords.reduce((t,p,j)=>j?t+hav(coords[j-1],p):0,0);if(kmx>1.35*best)return;
       if(out.some(o=>overlap(coords,o.coords)>0.8))return;
-      out.push({coords,km:kmx,s:sx,pela:g.m.n+' ('+g.m.uf+')'})})}
+      const nr={coords,km:kmx,s:sx,pela:g.m.n+' ('+g.m.uf+')'};out.push(nr);if(onAdd)try{onAdd(nr)}catch(e){}};
+  let next=0;const worker=async()=>{while(next<cand.length&&out.length<7&&Date.now()-T0<60000){const m=cand[next++];take(await get(m))}};
+  await Promise.all([worker(),worker()]);
   return out.sort((a,b)=>a.s-b.s)}
-async function calc(){
+
+
+// rotas pela TomTom (alternativas reais e trânsito); se falhar ou passar do limite diário, usa o OSRM
+const TT_KEY='gvfNY5Nk22ckjqaJgY4omImphHVtCbLc';let SRC='osrm';
+
+// dá nome às alternativas: a maior cidade por onde a rota passa e as outras não
+function nameRoutes(rs){
+  const smp=rs.map(x=>{const o=[];let acc=0;for(let i=1;i<x.coords.length;i++){acc+=hav(x.coords[i-1],x.coords[i]);if(acc>=3){o.push(x.coords[i]);acc=0}}return o});
+  const nearR=(c,j)=>smp[j].some(p=>Math.abs(p[0]-c[0])<0.05&&Math.abs(p[1]-c[1])<0.06&&hav(p,c)<4);
+  const lat0=Math.min(...smp.flat().map(p=>p[0]))-.1,lat1=Math.max(...smp.flat().map(p=>p[0]))+.1,lon0=Math.min(...smp.flat().map(p=>p[1]))-.1,lon1=Math.max(...smp.flat().map(p=>p[1]))+.1;
+  const cand=MUN.filter(m=>m.lat>lat0&&m.lat<lat1&&m.lon>lon0&&m.lon<lon1);
+  rs.forEach((x,j)=>{const de=x.coords[0],pa=x.coords[x.coords.length-1];
+    const m=cand.find(m=>{const c=[m.lat,m.lon];if(hav(c,de)<15||hav(c,pa)<15)return false;return nearR(c,j)&&!rs.some((_,k)=>k!==j&&nearR(c,k))});
+    if(m)x.pela=m.n+' ('+m.uf+')'})}
+async function ttRoutes(pts,nStops){
+  const ds=document.getElementById('odData').value,h=+document.getElementById('odHora').value;
+  let dep='now';try{const t=new Date(ds+'T'+String(h).padStart(2,'0')+':00:00');if(t.getTime()>Date.now()+60000)dep=ds+'T'+String(h).padStart(2,'0')+':00:00'}catch(e){}
+  const loc=pts.map(p=>p.lat.toFixed(5)+','+p.lon.toFixed(5)).join(':');
+  const url=`https://api.tomtom.com/routing/1/calculateRoute/${loc}/json?key=${TT_KEY}&travelMode=car&routeType=fastest&traffic=true&departAt=${encodeURIComponent(dep)}&routeRepresentation=polyline${nStops?'':'&maxAlternatives=5'}`;
+  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),20000);
+  try{const res=await fetch(url,{signal:ac.signal});clearTimeout(tm);if(!res.ok)return null;const d=await res.json();if(!d.routes||!d.routes.length)return null;
+    let rs=d.routes.map(x=>({coords:x.legs.flatMap(l=>l.points.map(p=>[p.latitude,p.longitude])),km:x.summary.lengthInMeters/1000,s:x.summary.travelTimeInSeconds}));
+    const bk=rs[0].km,bs=rs[0].s;rs=rs.filter((x,i)=>i===0||(x.km<=1.3*bk&&x.s<=1.35*bs));
+    rs=rs.filter((x,i)=>!rs.slice(0,i).some(o=>overlap(x.coords,o.coords)>0.97));
+    rs.sort((a,b)=>a.s-b.s);if(rs.length>1)nameRoutes(rs);
+    return rs}catch(e){clearTimeout(tm);return null}}
+// rota "sem sair da rodovia concedida": se a melhor rota sai de uma concessão e volta para ela (atalho), força a passagem
+// por um ponto da própria rodovia no meio desse desvio
+async function stayOnRoad(de,para,r0){
+  const an=analyse(r0.coords),vias=[];let rod='';
+  an.runs.forEach((u,i)=>{if(u.c!==null||u.km<3||i===0||i===an.runs.length-1)return;const a=an.runs[i-1],b=an.runs[i+1];if(!a.c||a.c!==b.c)return;
+    const mid=u.p[Math.floor(u.p.length/2)].a;let best=null,bd=1e9;
+    SEG.forEach(s=>{if(s.c!==a.c||s.co)return;s.g.forEach(line=>line.forEach(pt=>{const d=hav(mid,pt);if(d<bd){bd=d;best=pt}}))});
+    if(best&&bd<40){vias.push(best);const ps=a.p.find(p=>p.si!=null);if(ps&&!rod)rod=SEG[ps.si].r}});
+  if(!vias.length)return null;
+  const pts=[[de.lat,de.lon],...vias,[para.lat,para.lon]];
+  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),20000);
+  try{const res=await fetch(`https://router.project-osrm.org/route/v1/driving/${pts.map(p=>p[1]+','+p[0]).join(';')}?alternatives=false&overview=full&geometries=geojson`,{signal:ac.signal});clearTimeout(tm);
+    const d=await res.json();if(d.code!=='Ok'||!d.routes[0])return null;const g=d.routes[0],coords=g.geometry.coordinates.map(c=>[c[1],c[0]]);
+    if(overlap(coords,r0.coords)>0.98)return null;
+    return {coords,km:g.distance/1000,s:g.duration,pela:rod?'sempre pela '+rod:'sem desvios fora da concessão'}}catch(e){clearTimeout(tm);return null}}
+let CALCID=0;
+async function calc(){CALCID++;
   const de=cDe.value,para=cPara.value;
   if(!de||!para){msg('Escolha a origem e o destino na lista de cidades.',true);return}
   if(STOPS.some(c=>!c.value&&c.inp.value.trim())){msg('Escolha a cidade de cada parada na lista (ou remova a parada).',true);return}
@@ -1741,15 +1808,21 @@ async function calc(){
   // com paradas o OSRM devolve uma rota só (não calcula alternativas para mais de dois pontos)
   const url=`https://router.project-osrm.org/route/v1/driving/${pts.map(p=>p.lon+','+p.lat).join(';')}?alternatives=${stops.length?'false':'3'}&overview=full&geometries=geojson`;
   try{
+    let rsT=await ttRoutes(pts,stops.length);
+    if(rsT){SRC='tomtom';const mk=r=>{const o={de,para,stops,coords:r.coords,km:r.km,s:r.s,pela:r.pela,an:analyse(r.coords)};o.toll=tolls(o);return o};
+      ROUTES=rsT.slice(0,5).map(mk);SEL=0;draw();renderRes();select(0);
+      msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');return}
+    SRC='osrm';
     const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
     const res=await fetch(url,{signal:ctl.signal});clearTimeout(to);
     const d=await res.json();
     if(d.code!=='Ok'||!d.routes||!d.routes.length){msg('Não foi encontrada rota entre essas cidades.',true);clearRoutes();return}
     let rs=d.routes.map(r=>({coords:r.geometry.coordinates.map(c=>[c[1],c[0]]),km:r.distance/1000,s:r.duration}));
-    if(!stops.length){go.textContent='Buscando mais caminhos…';try{rs=await moreRoutes(de,para,rs)}catch(e){}}
-    ROUTES=rs.slice(0,5).map(r=>{const o={de,para,stops,coords:r.coords,km:r.km,s:r.s,pela:r.pela,an:analyse(r.coords)};o.toll=tolls(o);return o});
-    SEL=0;draw();renderRes();select(0);
-    msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
+    const mk=r=>{const o={de,para,stops,coords:r.coords,km:r.km,s:r.s,pela:r.pela,an:analyse(r.coords)};o.toll=tolls(o);return o};
+    const fin=()=>msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
+    // mostra já as rotas do primeiro cálculo; os caminhos extras (por cidades de passagem) chegam depois, sem travar a tela
+    ROUTES=rs.slice(0,5).map(mk);SEL=0;draw();renderRes();select(0);fin();
+
   }catch(e){
     if(window.console)console.error('[rota]',e);
     clearRoutes();
