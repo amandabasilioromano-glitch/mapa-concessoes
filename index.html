@@ -1034,7 +1034,22 @@ const BRB=L.latLngBounds([-33.8,-74],[5.3,-34.8]),fitBR=()=>map.fitBounds(BRB,{p
 const canvas=L.canvas({padding:.5,tolerance:6});
 const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const attr='Mapa: Esri, HERE, Garmin, © OpenStreetMap | Dados: ANTT e SNV/DNIT';
-const T=(u,m)=>L.tileLayer(ESRI+u+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:m,attribution:attr});
+// a Esri devolve um quadro cinza ("Map data not yet available") onde não há imagem naquele zoom;
+// nesse caso usa a imagem do zoom anterior ampliada (fica menos nítida, mas sem o quadro cinza)
+const PHc=document.createElement('canvas');PHc.width=PHc.height=256;const PHg=PHc.getContext('2d',{willReadFrequently:true});
+function isPh(im){try{PHg.clearRect(0,0,256,256);PHg.drawImage(im,0,0);const d=PHg.getImageData(0,0,256,256).data,
+  at=(x,y)=>{const i=(y*256+x)*4;return Math.abs(d[i]-204)<5&&Math.abs(d[i+1]-204)<5&&Math.abs(d[i+2]-204)<5};
+  return at(2,2)&&at(253,2)&&at(2,253)&&at(253,253)&&at(128,3)&&at(3,128)}catch(e){return false}}
+const tMax={};
+function esriTile(svc,z,x,y,cb){const n=1<<z,xw=((x%n)+n)%n,kz=Math.min(z,11),key=svc+'|'+(xw>>(z-kz))+'|'+(y>>(z-kz)),known=tMax[key];
+  const go=d=>{const zz=z-d,s=1<<d,im=new Image();im.crossOrigin='anonymous';
+    const nx=()=>{if(d<7&&zz>3)go(d+1);else cb(null)};
+    im.onload=()=>{if(isPh(im)){if(tMax[key]==null||tMax[key]>zz-1)tMax[key]=zz-1;return nx()}const w=256/s;cb(im,(xw&(s-1))*w,(y&(s-1))*w,w)};
+    im.onerror=nx;im.src=ESRI+svc+'/MapServer/tile/'+zz+'/'+(y>>d)+'/'+(xw>>d)};
+  go(known!=null&&known<z?z-known:0)}
+const EsriL=L.GridLayer.extend({createTile(c,done){const cv=document.createElement('canvas');cv.width=cv.height=256;
+  esriTile(this.options.svc,c.z,c.x,c.y,(im,sx,sy,w)=>{if(im)cv.getContext('2d').drawImage(im,sx,sy,w,w,0,0,256,256);done(null,cv)});return cv}});
+const T=(u,m)=>new EsriL({svc:u,maxZoom:19,maxNativeZoom:m,attribution:attr});
 const bases={
   // sem as camadas de rótulos da Esri (em inglês); os nomes em português são desenhados pelo próprio mapa
   // Claro: desenhado pelo próprio mapa (UFs, capitais e municípios em português), sem depender de serviço externo
@@ -1409,9 +1424,7 @@ function exportMap(fmt,btn){
     const x0=Math.floor(oT.x/256),y0=Math.floor(oT.y/256),x1=Math.floor((oT.x+cv.width/k)/256),y1=Math.floor((oT.y+cv.height/k)/256);
     const q=[];for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++)if(ty>=0&&ty<n)q.push([tx,ty]);
     let i=0,run=0;const next=()=>{if(i>=q.length){if(!run)res();return}const [tx,ty]=q[i++];run++;
-      const im=new Image();im.crossOrigin='anonymous';
-      im.onload=()=>{x.drawImage(im,(tx*256-oT.x)*k,(ty*256-oT.y)*k,256*k+.5,256*k+.5);done()};im.onerror=done;
-      im.src=ESRI+svc+'/MapServer/tile/'+zT+'/'+ty+'/'+(((tx%n)+n)%n);
+      esriTile(svc,zT,tx,ty,(im,sx,sy,w)=>{if(im)x.drawImage(im,sx,sy,w,w,(tx*256-oT.x)*k,(ty*256-oT.y)*k,256*k+.5,256*k+.5);done()});
       function done(){run--;next()}};
     for(let j=0;j<10;j++)next();if(!q.length)res()});
   const halo=(t,px,py,fs,w,col,hc)=>{x.font=fs;x.lineJoin='round';x.lineWidth=w;x.strokeStyle=hc;x.strokeText(t,px,py);x.fillStyle=col;x.fillText(t,px,py)};
