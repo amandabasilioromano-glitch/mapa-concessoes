@@ -892,6 +892,16 @@ body.short #side{height:88%!important}
 .rwz{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.rwz a,.rwz button{font:inherit;font-size:12px;font-weight:600;padding:6px 10px;border-radius:7px;border:1px solid #c5ccd8;background:#fff;color:#1351b4;cursor:pointer;text-decoration:none}
 .wznav{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#1b2a41}.wznav[hidden]{display:none}.wznav button{border:1px solid #c5ccd8;background:#fff;color:#1351b4;font:inherit;font-size:16px;width:30px;height:30px;border-radius:7px;cursor:pointer}.wznav button:disabled{opacity:.35;cursor:default}
 @media (max-width:760px){.wzi{display:none}.bm .wzb{padding-left:8px;margin-left:2px}}
+
+.trf{display:flex;align-items:center;gap:7px;padding:0 12px;font:inherit;font-size:13px;font-weight:600;color:#4f5d73;cursor:pointer;background:#f4f7fb;border:1px solid #c9d4e3;border-radius:6px;box-shadow:0 1px 4px rgba(19,81,180,.15)}
+.trf .trd{width:22px;height:6px;border-radius:3px;background:linear-gradient(90deg,#1fa64a 0 33%,#f5a623 33% 66%,#d0021b 66%)}
+.trf:hover{color:#1351b4}.trf.on{background:#1351b4;color:#fff;border-color:#1351b4}
+.trfbox{position:absolute;z-index:1000;left:10px;bottom:28px;background:rgba(255,255,255,.95);border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.25);padding:7px 10px;font-size:12px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;max-width:calc(100% - 20px)}
+.trfbox[hidden]{display:none}.trfbox b{font-size:12px}.trfbox span{display:flex;align-items:center;gap:4px}.trfbox i{display:inline-block;width:16px;height:4px;border-radius:2px}
+.trfbox small{color:#5b6b82;font-size:10.5px}.trfbox .trm{color:#b54708;font-weight:600;flex-basis:100%}.trfbox .trm:empty{display:none}
+.trfbox.off span,.trfbox.off b{opacity:.4}
+@media (max-width:760px){.trf{padding:0 9px}.trf .trl{display:none}.trfbox{bottom:70px}}
+body.phone .trf .trl{display:none}
 </style>
 </head>
 <body>
@@ -1100,10 +1110,11 @@ function setBase(k){
 const FSOK=!!(document.fullscreenEnabled||document.webkitFullscreenEnabled);
 const MapBar=L.Control.extend({onAdd(){
   const d=L.DomUtil.create('div','mapbar');
-  d.innerHTML='<div class="bm"><span class="lb">Mapa</span><button data-k="claro">Simplificado</button><button data-k="ruas">Sistema viário</button><button data-k="satelite">Satélite</button></div><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><span>Expandir mapa</span></button><button class="exp" type="button" data-f="png" title="Baixar o mapa como imagem em alta resolução">⬇ Imagem</button><button class="exp" type="button" data-f="pdf" title="Baixar o mapa em PDF em alta resolução">⬇ PDF</button>';
+  d.innerHTML='<div class="bm"><span class="lb">Mapa</span><button data-k="claro">Simplificado</button><button data-k="ruas">Sistema viário</button><button data-k="satelite">Satélite</button></div><button class="trf" type="button" title="Trânsito em tempo real (TomTom)"><span class="trd"></span><span class="trl">Trânsito</span></button><button class="fs" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><span>Expandir mapa</span></button><button class="exp" type="button" data-f="png" title="Baixar o mapa como imagem em alta resolução">⬇ Imagem</button><button class="exp" type="button" data-f="pdf" title="Baixar o mapa em PDF em alta resolução">⬇ PDF</button>';
   L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);
   d.querySelectorAll('.bm button').forEach(b=>b.onclick=()=>setBase(b.dataset.k));
   d.querySelectorAll('.exp').forEach(b=>b.onclick=()=>exportMap(b.dataset.f,b));
+  d.querySelector('.trf').onclick=()=>toggleTraffic();
   d.querySelector('.fs').onclick=()=>{
     const el=document.getElementById('map');
     // dentro de iframe sem permissão de tela cheia (ex.: Power BI), expande o mapa dentro da própria página
@@ -1115,6 +1126,23 @@ const MapBar=L.Control.extend({onAdd(){
   };
   return d}});
 new MapBar({position:'topright'}).addTo(map);
+// trânsito em tempo real (TomTom): lentidão em cores, por cima do mapa. Desligado por padrão
+// (só carrega quando a pessoa liga) e só a partir do zoom 7, para economizar a cota mensal.
+const TRF={on:false,err:0,ok:0};
+map.createPane('trf');map.getPane('trf').style.zIndex=455;map.getPane('trf').style.pointerEvents='none';
+const TTK='gvfNY5Nk22ckjqaJgY4omImphHVtCbLc',trfOpt={pane:'trf',minZoom:7,maxZoom:22,tileSize:256,opacity:.95,attribution:'Trânsito © TomTom'};
+const trfFlow=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+TTK+'&tileSize=256',trfOpt);
+const trfBox=L.DomUtil.create('div','trfbox',document.getElementById('map'));trfBox.hidden=true;
+trfBox.innerHTML='<b>Trânsito agora</b><span><i style="background:#1fa64a"></i>livre</span><span><i style="background:#f5a623"></i>lento</span><span><i style="background:#d0021b"></i>parado</span><small class="trm"></small><small>© TomTom</small>';
+L.DomEvent.disableClickPropagation(trfBox);
+[trfFlow].forEach(l=>{l.on('tileload',()=>{TRF.ok++});l.on('tileerror',()=>{TRF.err++;if(TRF.err>=8&&TRF.ok===0){toggleTraffic(false);trfMsg('Trânsito indisponível no momento.',true)}})});
+function trfMsg(t,keep){const m=trfBox.querySelector('.trm');m.textContent=t||'';if(keep){trfBox.hidden=false;trfBox.classList.add('off')}}
+function trfZoom(){if(!TRF.on)return;trfMsg(map.getZoom()<7?'Aproxime o mapa (nível de estado ou região) para ver o trânsito.':'')}
+function toggleTraffic(v){TRF.on=v===undefined?!TRF.on:v;const b=document.querySelector('.mapbar .trf');if(b)b.classList.toggle('on',TRF.on);
+  trfBox.classList.remove('off');
+  if(TRF.on){TRF.err=0;TRF.ok=0;trfFlow.addTo(map);trfBox.hidden=false;trfZoom()}else{map.removeLayer(trfFlow);trfBox.hidden=true}}
+map.on('zoomend',trfZoom);
+window.toggleTraffic=toggleTraffic;
 // logo (dá para arrastar) e créditos no rodapé: só aparecem com o mapa expandido
 (function(){const m=document.getElementById('map');
   const lg=document.createElement('img');lg.className='mlogo';lg.src=document.querySelector('#side .logo').src;lg.alt='ANTT';lg.draggable=false;lg.title='Arraste para mover';
@@ -1769,17 +1797,32 @@ function nameRoutes(rs){
   rs.forEach((x,j)=>{const de=x.coords[0],pa=x.coords[x.coords.length-1];
     const m=cand.find(m=>{const c=[m.lat,m.lon];if(hav(c,de)<15||hav(c,pa)<15)return false;return nearR(c,j)&&!rs.some((_,k)=>k!==j&&nearR(c,k))});
     if(m)x.pela=m.n+' ('+m.uf+')'})}
+
+// cache das rotas: na memória da página e no navegador (localStorage, se permitido), no máximo 12 trajetos, 24 h cada
+const TTMEM=new Map();
+function thin(c){const o=[c[0]];for(let i=1;i<c.length-1;i++){const l=o[o.length-1];if(Math.abs(c[i][0]-l[0])+Math.abs(c[i][1]-l[1])>0.001)o.push(c[i])}o.push(c[c.length-1]);return o.map(p=>[+p[0].toFixed(5),+p[1].toFixed(5)])}
+function ttCacheGet(k){const m=TTMEM.get(k);if(m)return JSON.parse(JSON.stringify(m));
+  try{const v=localStorage.getItem(k);if(!v)return null;const o=JSON.parse(v);if(Date.now()-o.t>864e5){localStorage.removeItem(k);return null}TTMEM.set(k,o.r);return JSON.parse(JSON.stringify(o.r))}catch(e){return null}}
+function ttCachePut(k,rs){TTMEM.set(k,JSON.parse(JSON.stringify(rs)));
+  try{const idx=JSON.parse(localStorage.getItem('ttr-idx')||'[]').filter(x=>x!==k);idx.push(k);
+    while(idx.length>12){const old=idx.shift();localStorage.removeItem(old)}
+    const save=()=>{localStorage.setItem(k,JSON.stringify({t:Date.now(),r:rs}));localStorage.setItem('ttr-idx',JSON.stringify(idx))};
+    try{save()}catch(e){while(idx.length>1){const old=idx.shift();localStorage.removeItem(old);try{save();break}catch(e2){}}}}catch(e){}}
 async function ttRoutes(pts,nStops){
   const ds=document.getElementById('odData').value,h=+document.getElementById('odHora').value;
   let dep='now';try{const t=new Date(ds+'T'+String(h).padStart(2,'0')+':00:00');if(t.getTime()>Date.now()+60000)dep=ds+'T'+String(h).padStart(2,'0')+':00:00'}catch(e){}
   const loc=pts.map(p=>p.lat.toFixed(5)+','+p.lon.toFixed(5)).join(':');
   const url=`https://api.tomtom.com/routing/1/calculateRoute/${loc}/json?key=${TT_KEY}&travelMode=car&routeType=fastest&traffic=true&departAt=${encodeURIComponent(dep)}&routeRepresentation=polyline${nStops?'':'&maxAlternatives=5'}`;
+  // rotas já calculadas ficam guardadas no navegador (mesmos pontos, mesma data e hora de saída) por até 24 h: não gastam consulta de novo
+  const now=new Date(),key='ttr|'+loc+'|'+(dep==='now'?now.toISOString().slice(0,13):dep);
+  const hit=ttCacheGet(key);if(hit)return hit;
   const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),20000);
   try{const res=await fetch(url,{signal:ac.signal});clearTimeout(tm);if(!res.ok)return null;const d=await res.json();if(!d.routes||!d.routes.length)return null;
     let rs=d.routes.map(x=>({coords:x.legs.flatMap(l=>l.points.map(p=>[p.latitude,p.longitude])),km:x.summary.lengthInMeters/1000,s:x.summary.travelTimeInSeconds}));
     const bk=rs[0].km,bs=rs[0].s;rs=rs.filter((x,i)=>i===0||(x.km<=1.3*bk&&x.s<=1.35*bs));
     rs=rs.filter((x,i)=>!rs.slice(0,i).some(o=>overlap(x.coords,o.coords)>0.97));
     rs.sort((a,b)=>a.s-b.s);if(rs.length>1)nameRoutes(rs);
+    rs.forEach(x=>x.coords=thin(x.coords));ttCachePut(key,rs);
     return rs}catch(e){clearTimeout(tm);return null}}
 // rota "sem sair da rodovia concedida": se a melhor rota sai de uma concessão e volta para ela (atalho), força a passagem
 // por um ponto da própria rodovia no meio desse desvio
@@ -1822,6 +1865,12 @@ async function calc(){CALCID++;
     const fin=()=>msg(stops.length?`Rota com ${stops.length} parada${stops.length>1?'s':''}. Com paradas, o cálculo mostra uma rota só.`:ROUTES.length>1?`${ROUTES.length} opções de rota. Clique numa rota (na lista ou no mapa) para ver o detalhe.`:'Só uma rota encontrada para esse trajeto.');
     // mostra já as rotas do primeiro cálculo; os caminhos extras (por cidades de passagem) chegam depois, sem travar a tela
     ROUTES=rs.slice(0,5).map(mk);SEL=0;draw();renderRes();select(0);fin();
+    // sem a TomTom (limite do mês ou fora do site): busca caminhos extras por cidades de passagem, como antes
+    if(!stops.length){const myId=++CALCID;msg('Buscando outros caminhos… (as rotas acima já podem ser usadas)');
+      const addOne=x=>{if(myId!==CALCID||!ROUTES.length)return;const cur=ROUTES[SEL],o=mk(x);
+        ROUTES.push(o);ROUTES.sort((a,b)=>a.s-b.s);if(ROUTES.length>5){const drop=ROUTES[ROUTES.length-1]===cur?ROUTES[ROUTES.length-2]:ROUTES[ROUTES.length-1];ROUTES.splice(ROUTES.indexOf(drop),1)}
+        SEL=ROUTES.indexOf(cur);draw();renderRes();msg(`Buscando outros caminhos… ${ROUTES.length} rotas até agora (já podem ser usadas)`)};
+      moreRoutes(de,para,rs,addOne).then(()=>{if(myId===CALCID)fin()}).catch(()=>{if(myId===CALCID)fin()})}
 
   }catch(e){
     if(window.console)console.error('[rota]',e);
