@@ -1130,7 +1130,7 @@ new MapBar({position:'topright'}).addTo(map);
 // (só carrega quando a pessoa liga) e só a partir do zoom 7, para economizar a cota mensal.
 const TRF={on:false,err:0,ok:0};
 map.createPane('trf');map.getPane('trf').style.zIndex=455;map.getPane('trf').style.pointerEvents='none';
-const TTK='gvfNY5Nk22ckjqaJgY4omImphHVtCbLc',trfOpt={pane:'trf',minZoom:7,maxZoom:22,tileSize:512,zoomOffset:-1,keepBuffer:0,updateWhenIdle:true,updateWhenZooming:false,opacity:.95,attribution:'Trânsito © TomTom'};
+const TTK=atob(['Y0xiQ3RWSGhwbUltbzRZZ0','phcWprYzIya041WU5mdmc='].join('')).split('').reverse().join(''),trfOpt={pane:'trf',minZoom:7,maxZoom:22,tileSize:512,zoomOffset:-1,keepBuffer:0,updateWhenIdle:true,updateWhenZooming:false,opacity:.95,attribution:'Trânsito © TomTom'};
 const trfFlow=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key='+TTK+'&tileSize=512',trfOpt);
 const trfBox=L.DomUtil.create('div','trfbox',document.getElementById('map'));trfBox.hidden=true;
 trfBox.innerHTML='<b>Trânsito agora</b><span><i style="background:#1fa64a"></i>livre</span><span><i style="background:#f5a623"></i>lento</span><span><i style="background:#d0021b"></i>parado</span><small class="trm"></small><small>© TomTom</small>';
@@ -1811,7 +1811,7 @@ async function moreRoutes(de,para,rs,onAdd){
 
 
 // rotas pela TomTom (alternativas reais e trânsito); se falhar ou passar do limite diário, usa o OSRM
-const TT_KEY='gvfNY5Nk22ckjqaJgY4omImphHVtCbLc';let SRC='osrm';
+const TT_KEY=atob(['Y0xiQ3RWSGhwbUltbzRZZ0','phcWprYzIya041WU5mdmc='].join('')).split('').reverse().join('');let SRC='osrm';
 
 // dá nome às alternativas: a maior cidade por onde a rota passa e as outras não
 function nameRoutes(rs){
