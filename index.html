@@ -1299,14 +1299,16 @@ function updateRec(){
   RECT.forEach(x=>document.getElementById('nRec_'+x.k).textContent=n[x.k]||0);
 }
 document.querySelectorAll('[data-rec]').forEach(c=>c.onchange=()=>{updateRec();if(window.updateLegend)updateLegend()});
+const TORD=v=>{const i=['Eixo Principal','Acesso','Contorno','Variante','Anel','Travessia Urbana','Estadual'].indexOf(v);return i<0?99:i};
 const DIMS=[
   {key:'c',label:'Concessionária',sort:(a,b)=>a.localeCompare(b,'pt'),open:true},
   {key:'r',label:'Rodovia',sort:(a,b)=>rodKey(a).localeCompare(rodKey(b))},
   {key:'u',label:'UF',sort:(a,b)=>a.localeCompare(b)},
+  {key:'t',label:'Tipo de trecho',sort:(a,b)=>TORD(a)-TORD(b),nosearch:true},
   {key:'k',label:'Trecho coincidente',sort:(a,b)=>a==='-'?-1:1,nosearch:true,lab:v=>v==='-'?'- (não coincidente)':'coinc (coincidente)'}
 ];
 const DEF={k:['-']};
-const sel={c:new Set(),r:new Set(),u:new Set(),k:new Set(DEF.k)};
+const sel={c:new Set(),r:new Set(),u:new Set(),t:new Set(),k:new Set(DEF.k)};
 // filtro de km: corta as linhas no intervalo escolhido
 const KMAX=Math.ceil(Math.max(...SEG.map(s=>s.kf||0)));const KM={a:0,b:KMAX},KR={lo:0,hi:KMAX}; // KR: faixa de km dos trechos que passam pelos outros filtros
 const kmOn=()=>KM.a>KR.lo+.05||KM.b<KR.hi-.05;
